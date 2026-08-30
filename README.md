@@ -385,6 +385,13 @@ Sur une carte étroite, la pastille « Vu » et les badges de disponibilité ne
 tiennent pas côte à côte : les badges passent au-dessus, et sont limités à deux
 (la fiche du film les montre tous).
 
+Un piège de CSS Grid méritait d'être noté : une piste `1fr` a pour minimum
+implicite `auto`, donc elle **s'élargit pour contenir son contenu** au lieu de
+le contraindre. La barre d'onglets (~460 px) poussait ainsi la colonne au-delà
+de l'écran : ascenseur horizontal, et la grille calculait trois colonnes de
+films là où il n'y a la place que pour deux. `minmax(0, 1fr)` lève ce minimum,
+et la barre d'onglets défile alors dans son propre cadre.
+
 Au-dessus de 1080 px, rien ne change : le panneau reste fixe à gauche.
 
 ## Écran de réglages

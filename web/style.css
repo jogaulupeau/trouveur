@@ -1684,3 +1684,18 @@ input[type="file"]::file-selector-button {
      tous. */
   .card-avail > :nth-child(n + 3) { display: none; }
 }
+
+/* ---------------- débordement horizontal sur téléphone ----------------
+   Une piste « 1fr » a pour minimum implicite « auto » : elle s'élargit pour
+   contenir son contenu au lieu de le contraindre. La barre d'onglets
+   (~460 px) poussait donc la colonne au-delà de l'écran, ce qui donnait un
+   ascenseur horizontal et faisait calculer 3 colonnes de films là où il n'y a
+   la place que pour 2. « minmax(0, 1fr) » lève ce minimum.
+   ------------------------------------------------------------------- */
+@media (max-width: 1080px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .results { min-width: 0; }
+  .grid { min-width: 0; }
+  /* Le bandeau doit passer à la ligne plutôt que d'élargir la page. */
+  .results-meta { overflow-wrap: anywhere; }
+}
