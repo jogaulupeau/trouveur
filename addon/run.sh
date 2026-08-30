@@ -8,8 +8,10 @@ mkdir -p /data
 
 # Les options de l'interface Home Assistant sont reportees dans config.json,
 # sans toucher aux cles qu'elles ne couvrent pas.
+# Seule une erreur reelle arrete le demarrage (volume illisible). Une
+# configuration incomplete, elle, se regle dans l'interface.
 if ! python3 /opt/trouveur/apply_options.py; then
-    bashio::log.fatal "Configuration incomplete : l'add-on ne peut pas demarrer."
+    bashio::log.fatal "Impossible de preparer /data : l'add-on ne peut pas demarrer."
     exit 1
 fi
 

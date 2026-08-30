@@ -20,9 +20,18 @@ le dépôt. Ce script n'y copie que le code : ni clé, ni liste, ni cache.
 
 ## Configuration
 
+Deux endroits, au choix : les options ci-dessous, ou l'écran **Réglages** dans
+l'interface de l'add-on. Rien n'est obligatoire pour démarrer — sans clé TMDB
+l'application s'ouvre directement sur son écran de configuration.
+
+Les options de Home Assistant sont une **amorce, pas une remise à zéro** : une
+case décochée ne désactive pas ce que l'interface a activé, et un champ vide
+n'efface pas une valeur en place. On peut donc tout laisser vide ici et tout
+régler depuis l'interface.
+
 | Option | Rôle |
 | --- | --- |
-| `tmdb_api_key` | **Obligatoire.** Clé v3 ou jeton v4 de [TMDB](https://www.themoviedb.org/settings/api). Sans elle l'add-on refuse de démarrer. |
+| `tmdb_api_key` | Clé v3 ou jeton v4 de [TMDB](https://www.themoviedb.org/settings/api). Peut aussi être saisie dans l'écran **Réglages** de l'interface. |
 | `tmdb_language`, `tmdb_region` | Langue des fiches et région pour les dates et les plateformes. |
 | `my_services` | Identifiants TMDB de vos abonnements. Vide = tous les services. Netflix 8 · Prime Video 119 · Disney+ 337 · Apple TV+ 350 · Canal+ 381 · Paramount+ 531 |
 | `tracker_*` | Indexeur Torznab : activation, adresse, clé d'API. |
@@ -63,16 +72,15 @@ La reprise est **strictement additive** :
 Les fichiers peuvent donc rester dans `share` : après la première reprise ils
 sont simplement ignorés.
 
-### Connexion Plex sans recopier de jeton
+### Connexion Plex
 
-Le flux OAuth de Plex (`--plex-login`) demande un terminal. Deux possibilités :
+Dans l'interface, **Réglages** → **Se connecter avec Plex**. La page
+d'approbation de Plex s'ouvre, tes identifiants sont saisis chez eux, et tes
+serveurs sont ensuite découverts avec leurs adresses. Aucun jeton à recopier,
+aucun terminal.
 
-- lancer Trouveur une fois en local, faire `python server.py --plex-login`,
-  puis reporter `plex_base_url` et `plex_token` dans les options ;
-- ou coller directement le jeton relevé dans l'interface web de Plex.
-
-L'identifiant d'installation (`plex.client_id`) écrit par cette connexion est
-conservé d'un démarrage à l'autre : les options ne l'écrasent pas.
+L'identifiant d'installation (`plex.client_id`) est conservé d'un démarrage à
+l'autre : les options ne l'écrasent pas, il n'y a donc pas à se reconnecter.
 
 ## Journal
 

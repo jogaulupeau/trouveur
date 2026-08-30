@@ -92,15 +92,24 @@ def main() -> int:
             int(s) for s in services if str(s).isdigit()
         ]
 
-    config.setdefault("tracker", {})["enabled"] = bool(options.get("tracker_enabled"))
+    bloc = config.setdefault("tracker", {})
+    # Une case decochee dans les options ne desactive pas ce que l'interface a
+    # active : les options sont une amorce, pas une remise a zero a chaque
+    # demarrage. Meme regle que pour les champs vides.
+    if options.get("tracker_enabled"):
+        bloc["enabled"] = True
+    bloc.setdefault("enabled", False)
     _set(config, "tracker.base_url", options.get("tracker_base_url"))
     _set(config, "tracker.api_key", options.get("tracker_api_key"))
 
-    config.setdefault("plex", {})["enabled"] = bool(options.get("plex_enabled"))
+    bloc = config.setdefault("plex", {})
+    if options.get("plex_enabled"):
+        bloc["enabled"] = True
+    bloc.setdefault("enabled", False)
     _set(config, "plex.base_url", options.get("plex_base_url"))
     _set(config, "plex.token", options.get("plex_token"))
-    config["plex"]["verify_tls"] = bool(options.get("plex_verify_tls", True))
-    config["plex"]["sync_watched"] = bool(options.get("plex_sync_watched", True))
+    bloc.setdefault("verify_tls", bool(options.get("plex_verify_tls", True)))
+    bloc.setdefault("sync_watched", bool(options.get("plex_sync_watched", True)))
 
     tmp = CONFIG_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
@@ -110,12 +119,11 @@ def main() -> int:
     os.replace(tmp, CONFIG_PATH)
 
     if not config.get("tmdb", {}).get("api_key"):
-        print(
-            "Aucune cle TMDB : renseigne « tmdb_api_key » dans la configuration "
-            "de l'add-on.",
-            file=sys.stderr,
-        )
-        return 1
+        # Pas de cle : on demarre quand meme. L'interface s'ouvrira sur son
+        # ecran de configuration, ou la cle peut etre saisie. Refuser de
+        # demarrer rendrait cet ecran inatteignable.
+        print("Aucune cle TMDB. L'interface s'ouvrira sur l'ecran de "
+              "configuration : renseigne-la la, ou dans les options de l'add-on.")
     return 0
 
 
