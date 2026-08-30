@@ -1,5 +1,5 @@
 name: Trouveur
-version: "1.0.5"
+version: "1.1.0"
 slug: trouveur
 description: >-
   Propositions de films selon vos critères, avec disponibilité sur votre
@@ -40,6 +40,12 @@ options:
   plex_token: ""
   plex_verify_tls: true
   plex_sync_watched: true
+  deluge_enabled: false
+  deluge_base_url: ""
+  deluge_password: ""
+  deluge_client_cert: ""
+  deluge_client_key: ""
+  deluge_ca_cert: ""
   log_level: info
 
 schema:
@@ -56,4 +62,10 @@ schema:
   plex_token: password
   plex_verify_tls: bool
   plex_sync_watched: bool
+  deluge_enabled: bool
+  deluge_base_url: str
+  deluge_password: password
+  deluge_client_cert: str
+  deluge_client_key: str
+  deluge_ca_cert: str
   log_level: list(trace|debug|info|warning|error|fatal)

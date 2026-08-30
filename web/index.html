@@ -277,6 +277,71 @@
         </section>
 
         <section class="settings-block">
+          <h4>Deluge</h4>
+          <p class="settings-help">
+            Envoyer les torrents directement au serveur. Trouveur télécharge le
+            fichier avec sa clé de tracker puis le transmet : Deluge n'a besoin
+            ni de cette clé, ni d'un accès au tracker.
+          </p>
+          <label class="switch settings-switch">
+            <input type="checkbox" id="set-deluge-enabled">
+            <span class="switch-track"><span class="switch-knob"></span></span>
+            <span class="switch-label">Activer l'envoi vers Deluge</span>
+          </label>
+          <label class="settings-field">
+            <span>Adresse de l'interface web</span>
+            <input type="text" id="set-deluge-url" placeholder="https://deluge.mondomaine.fr">
+          </label>
+          <label class="settings-field">
+            <span>Mot de passe de l'interface web</span>
+            <input type="password" id="set-deluge-password" autocomplete="off">
+          </label>
+
+          <p class="settings-help settings-sub">
+            Accès protégé par certificat client : indiquer les chemins des
+            fichiers <strong>au format PEM</strong>, tels que le serveur Trouveur
+            les voit.
+          </p>
+          <label class="settings-field">
+            <span>Certificat client (.crt / .pem)</span>
+            <input type="text" id="set-deluge-cert" placeholder="/config/deluge/client.crt">
+          </label>
+          <label class="settings-field">
+            <span>Clé privée (.key)</span>
+            <input type="text" id="set-deluge-key" placeholder="/config/deluge/client.key">
+          </label>
+          <label class="settings-field">
+            <span>Phrase de passe de la clé</span>
+            <input type="password" id="set-deluge-keypass" autocomplete="off">
+          </label>
+          <label class="settings-field">
+            <span>Autorité de certification (si privée)</span>
+            <input type="text" id="set-deluge-ca" placeholder="/config/deluge/ca.crt">
+          </label>
+
+          <div class="settings-row">
+            <label class="settings-field">
+              <span>Dossier de destination</span>
+              <input type="text" id="set-deluge-dir" placeholder="facultatif">
+            </label>
+            <label class="settings-field">
+              <span>Étiquette</span>
+              <input type="text" id="set-deluge-label" placeholder="facultatif">
+            </label>
+          </div>
+          <label class="switch settings-switch">
+            <input type="checkbox" id="set-deluge-paused">
+            <span class="switch-track"><span class="switch-knob"></span></span>
+            <span class="switch-label">Ajouter en pause</span>
+          </label>
+
+          <button type="button" class="btn btn-ghost settings-sync" id="deluge-test">
+            Tester la connexion
+          </button>
+          <div id="deluge-state"></div>
+        </section>
+
+        <section class="settings-block">
           <h4>Tracker</h4>
           <label class="switch settings-switch">
             <input type="checkbox" id="set-tracker-enabled">

@@ -25,6 +25,7 @@ from typing import Any
 
 from trouveur import cache, config as config_module, seen
 from trouveur.http_client import HttpError
+from trouveur.deluge import Deluge, DelugeError
 from trouveur.plex import Plex, PlexError
 from trouveur.plex_auth import PlexAuthError
 from trouveur.reco import ForYou
@@ -39,6 +40,7 @@ CONFIG: dict[str, Any] = {}
 TMDB: Tmdb
 TRACKER: Tracker
 PLEX: Plex
+DELUGE: Deluge
 FORYOU: ForYou
 
 
@@ -48,11 +50,12 @@ def reload_services() -> None:
     Sans cela il faudrait redemarrer pour qu'une cle saisie dans l'interface
     prenne effet — ce qui, dans un add-on sans terminal, serait penible.
     """
-    global CONFIG, TMDB, TRACKER, PLEX, FORYOU
+    global CONFIG, TMDB, TRACKER, PLEX, DELUGE, FORYOU
     CONFIG = config_module.load()
     TMDB = Tmdb(CONFIG)
     TRACKER = Tracker(CONFIG)
     PLEX = Plex(CONFIG)
+    DELUGE = Deluge(CONFIG)
     FORYOU = ForYou(TMDB)
 
     if not config_module.is_configured(CONFIG):
@@ -89,6 +92,10 @@ class Handler(BaseHTTPRequestHandler):
                 reload_services()
                 self._send_json(resultat)
                 return
+            if chemin == "/api/deluge/add":
+                corps = self._read_json_body()
+                self._send_json(_envoyer_vers_deluge(corps))
+                return
             if chemin == "/api/import":
                 corps = self._read_json_body()
                 store = _store_for("/api/" + str(corps.get("list") or ""))
@@ -115,6 +122,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(resultat)
                 return
         except PlexAuthError as exc:
+            self._send_json({"error": str(exc)}, status=502)
+            return
+        except DelugeError as exc:
             self._send_json({"error": str(exc)}, status=502)
             return
         except ValueError as exc:
@@ -188,6 +198,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(self._torrents(params))
             elif path == "/api/torrent":
                 self._send_torrent_file(params)
+            elif path == "/api/deluge/test":
+                self._send_json(DELUGE.test())
             elif path == "/api/settings":
                 self._send_json(settings_module.current())
             elif path == "/api/plex/login/poll":
@@ -248,6 +260,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": str(exc)}, status=502)
         except PlexError as exc:
             self._send_json({"error": str(exc)}, status=502)
+        except DelugeError as exc:
+            self._send_json({"error": str(exc)}, status=502)
 
     # -- points d'entree ---------------------------------------------------
 
@@ -271,6 +285,7 @@ class Handler(BaseHTTPRequestHandler):
             "watchlist": sorted(seen.WATCHLIST.ids()),
             "ignored": sorted(seen.IGNORED.ids()),
             "plex": {"enabled": PLEX.configured, "sync": PLEX.sync_watched},
+            "deluge": {"enabled": DELUGE.configured},
             "configured": config_module.is_configured(CONFIG),
         }
 
@@ -426,6 +441,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": str(exc)}, status=502)
         except PlexError as exc:
             self._send_json({"error": str(exc)}, status=502)
+        except DelugeError as exc:
+            self._send_json({"error": str(exc)}, status=502)
             return
 
         self.send_response(200)
@@ -500,6 +517,22 @@ def _list_payload(store: seen.MovieList) -> dict[str, Any]:
                 "incomplete": True,
             })
     return {"movies": movies, "count": len(movies)}
+
+
+def _envoyer_vers_deluge(corps: dict[str, Any]) -> dict[str, Any]:
+    """Recupere le .torrent aupres du tracker puis le confie a Deluge.
+
+    Le fichier transite par Trouveur, qui seul detient la cle du tracker :
+    Deluge n'a besoin ni de cette cle, ni d'un acces au tracker.
+    """
+    slug = str(corps.get("slug") or "").strip()
+    if not slug:
+        raise ValueError("Torrent manquant")
+    if not DELUGE.configured:
+        return {"added": False, "message": "Deluge n'est pas configuré."}
+
+    data = TRACKER.torrent_file(slug)
+    return DELUGE.add_torrent_file(slug[:120] + ".torrent", data)
 
 
 def _sans_interne(payload: dict[str, Any]) -> dict[str, Any]:
@@ -582,7 +615,7 @@ def main() -> int:
         from trouveur import plex_setup
         return plex_setup.run()
 
-    global CONFIG, TMDB, TRACKER, PLEX, FORYOU
+    global CONFIG, TMDB, TRACKER, PLEX, DELUGE, FORYOU
     try:
         CONFIG = config_module.load()
     except config_module.ConfigError as exc:
@@ -592,6 +625,7 @@ def main() -> int:
     TMDB = Tmdb(CONFIG)
     TRACKER = Tracker(CONFIG)
     PLEX = Plex(CONFIG)
+    DELUGE = Deluge(CONFIG)
     FORYOU = ForYou(TMDB)
 
     if not config_module.is_configured(CONFIG):

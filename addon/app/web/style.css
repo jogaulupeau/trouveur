@@ -1735,3 +1735,23 @@ input[type="file"]::file-selector-button {
   .score-bar { width: 84px; }
   .cast { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 10px; }
 }
+
+/* envoi vers Deluge */
+.torrent-deluge {
+  padding: 6px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--green);
+  background: none;
+  border: 1px solid rgba(78, 201, 138, 0.4);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.torrent-deluge:hover { background: var(--green-dim); }
+.torrent-deluge:disabled { cursor: default; }
+.torrent-deluge.is-done { color: #16240f; background: var(--green); border-color: transparent; }
+.torrent-deluge.is-known { color: var(--text-faint); border-color: var(--line); }
+.torrent-deluge.is-failed { color: var(--red); border-color: rgba(224, 100, 92, 0.5); }
+.settings-sub { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+@media (pointer: coarse) { .torrent-deluge { min-height: 40px; } }

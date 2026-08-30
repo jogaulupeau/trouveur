@@ -111,6 +111,16 @@ def main() -> int:
     bloc.setdefault("verify_tls", bool(options.get("plex_verify_tls", True)))
     bloc.setdefault("sync_watched", bool(options.get("plex_sync_watched", True)))
 
+    bloc = config.setdefault("deluge", {})
+    if options.get("deluge_enabled"):
+        bloc["enabled"] = True
+    bloc.setdefault("enabled", False)
+    _set(config, "deluge.base_url", options.get("deluge_base_url"))
+    _set(config, "deluge.password", options.get("deluge_password"))
+    _set(config, "deluge.client_cert", options.get("deluge_client_cert"))
+    _set(config, "deluge.client_key", options.get("deluge_client_key"))
+    _set(config, "deluge.ca_cert", options.get("deluge_ca_cert"))
+
     tmp = CONFIG_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(config, fh, ensure_ascii=False, indent=2)

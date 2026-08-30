@@ -39,6 +39,7 @@ def current() -> dict[str, Any]:
     tmdb = config.get("tmdb", {})
     tracker = config.get("tracker", {})
     plex = config.get("plex", {})
+    deluge = config.get("deluge", {})
 
     return {
         "configured": config_module.is_configured(config),
@@ -55,6 +56,19 @@ def current() -> dict[str, Any]:
             "name": tracker.get("name", ""),
             "base_url": tracker.get("base_url", ""),
             "has_key": bool(tracker.get("api_key")),
+        },
+        "deluge": {
+            "enabled": bool(deluge.get("enabled")),
+            "base_url": deluge.get("base_url", ""),
+            "has_password": bool(deluge.get("password")),
+            "client_cert": deluge.get("client_cert", ""),
+            "client_key": deluge.get("client_key", ""),
+            "has_key_password": bool(deluge.get("client_key_password")),
+            "ca_cert": deluge.get("ca_cert", ""),
+            "verify_tls": bool(deluge.get("verify_tls", True)),
+            "add_paused": bool(deluge.get("add_paused", False)),
+            "download_location": deluge.get("download_location", ""),
+            "label": deluge.get("label", ""),
         },
         "plex": {
             "enabled": bool(plex.get("enabled")),
@@ -105,6 +119,21 @@ def update(payload: dict[str, Any]) -> dict[str, Any]:
     _pose(bloc, "token", plex.get("token"), secret=True)
     _pose(bloc, "verify_tls", plex.get("verify_tls"))
     _pose(bloc, "sync_watched", plex.get("sync_watched"))
+
+    deluge = payload.get("deluge") or {}
+    bloc = config.setdefault("deluge", {})
+    _pose(bloc, "enabled", deluge.get("enabled"))
+    _pose(bloc, "base_url", deluge.get("base_url") or None)
+    _pose(bloc, "password", deluge.get("password"), secret=True)
+    # Un chemin de certificat vide signifie « je n'en utilise pas » : c'est un
+    # choix, pas un oubli. Il doit donc pouvoir etre efface, contrairement aux
+    # secrets.
+    for cle in ("client_cert", "client_key", "ca_cert", "download_location", "label"):
+        if cle in deluge:
+            bloc[cle] = deluge[cle]
+    _pose(bloc, "client_key_password", deluge.get("client_key_password"), secret=True)
+    _pose(bloc, "verify_tls", deluge.get("verify_tls"))
+    _pose(bloc, "add_paused", deluge.get("add_paused"))
 
     config_module.save(config)
     return current()

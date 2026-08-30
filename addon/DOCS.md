@@ -35,6 +35,7 @@ régler depuis l'interface.
 | `tmdb_language`, `tmdb_region` | Langue des fiches et région pour les dates et les plateformes. |
 | `my_services` | Identifiants TMDB de vos abonnements. Se règle plus simplement dans **Réglages → Mes abonnements**, avec les logos. Vide = tous les services. |
 | `tracker_*` | Indexeur Torznab : activation, adresse, clé d'API. |
+| `deluge_*` | Serveur Deluge : activation, adresse, mot de passe, et les chemins des fichiers PEM si l'accès est protégé par certificat client. Se règle aussi dans **Réglages**. |
 | `plex_*` | Serveur Plex : activation, adresse, jeton, vérification TLS, reprise des films déjà vus. |
 
 Les champs `tracker_api_key` et `plex_token` sont de type `password` : Home
@@ -93,6 +94,28 @@ l'autre : les options ne l'écrasent pas, il n'y a donc pas à se reconnecter.
 Le bouton **Synchroniser les « déjà vus » maintenant** reporte immédiatement
 les films lus sur Plex, sans attendre le prochain démarrage. Comme la
 synchronisation automatique, il n'ajoute que l'inédit et ne retire jamais rien.
+
+## Deluge
+
+Un bouton **Deluge** apparaît sur chaque torrent de la fiche d'un film et lance
+le téléchargement sur le serveur.
+
+Trouveur récupère le `.torrent` auprès du tracker avec sa propre clé, puis le
+transmet à Deluge en base64 (`core.add_torrent_file`). **Deluge n'a donc besoin
+ni de la clé du tracker, ni d'un accès au tracker.**
+
+Si l'accès à Deluge est protégé par un certificat client, indiquer les chemins
+des fichiers **au format PEM** tels que l'add-on les voit — donc dans `/config`
+ou `/share`, montés dans le conteneur. Un fichier PKCS#12 (`.p12`, `.pfx`) n'est
+pas lisible directement ; le convertir :
+
+```bash
+openssl pkcs12 -in cert.p12 -clcerts -nokeys -out client.crt
+openssl pkcs12 -in cert.p12 -nocerts -nodes -out client.key
+```
+
+Le bouton **Tester la connexion** déroule le diagnostic étape par étape :
+lecture du certificat, négociation TLS, authentification, liaison au démon.
 
 ## Journal
 

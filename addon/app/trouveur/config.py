@@ -37,6 +37,24 @@ DEFAULTS: dict[str, Any] = {
         # services de la region sont proposes et affiches.
         "my_services": [],
     },
+    "deluge": {
+        # Serveur Deluge : Trouveur lui transmet le .torrent deja telecharge,
+        # il n'a donc jamais besoin de la cle du tracker.
+        "enabled": False,
+        "base_url": "",
+        "password": "",
+        # Acces protege par certificat client : chemins vers les fichiers PEM.
+        "client_cert": "",
+        "client_key": "",
+        "client_key_password": "",
+        # Autorite privee ayant signe le certificat du serveur, le cas echeant.
+        "ca_cert": "",
+        "verify_tls": True,
+        "timeout": 20,
+        "add_paused": False,
+        "download_location": "",
+        "label": "",
+    },
     "plex": {
         # Serveur Plex (souvent distant : NAS, autre machine du reseau).
         "enabled": False,

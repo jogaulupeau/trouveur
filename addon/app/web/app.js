@@ -19,6 +19,7 @@ const state = {
   searchQuery: '',
   similarTo: null,      // {id, title} quand on explore les films proches
   plex: { enabled: false },
+  deluge: { enabled: false },
   avail: new Map(),         // id TMDB -> où regarder le film (Plex, plateformes)
   lastMovies: [],
   query: null,          // requête figée au lancement de la recherche
@@ -106,6 +107,7 @@ async function bootstrap() {
     state.watchlist = new Set(data.watchlist || []);
     state.ignored = new Set(data.ignored || []);
     state.plex = data.plex || { enabled: false };
+    state.deluge = data.deluge || { enabled: false };
     data.genres.forEach((g) => state.genres.set(g.id, g.name));
     buildGenreChips(data.genres);
     buildProviders();
@@ -585,6 +587,7 @@ function bindEvents() {
   $('settings-form').addEventListener('submit', saveSettings);
   $('plex-connect').addEventListener('click', plexConnect);
   $('plex-sync-now').addEventListener('click', plexSyncNow);
+  $('deluge-test').addEventListener('click', delugeTest);
   $('set-import').addEventListener('change', importerFichiers);
   $('settings-backdrop').addEventListener('click', (event) => {
     if (event.target === $('settings-backdrop')) closeSettings();
@@ -1519,6 +1522,14 @@ function renderTorrents(result) {
       get.href = apiUrl(`api/torrent?slug=${encodeURIComponent(torrent.slug)}`);
       get.title = 'Télécharger le fichier .torrent';
       stats.appendChild(get);
+
+      if (state.deluge.enabled) {
+        const envoi = el('button', 'torrent-deluge', 'Deluge');
+        envoi.type = 'button';
+        envoi.title = 'Lancer le téléchargement sur le serveur Deluge';
+        envoi.addEventListener('click', () => envoyerVersDeluge(torrent.slug, envoi));
+        stats.appendChild(envoi);
+      }
     }
     row.appendChild(stats);
 
@@ -1581,6 +1592,20 @@ async function loadSettings() {
   $('plex-servers').textContent = '';
   $('plex-sync-state').textContent = '';
   $('import-state').textContent = '';
+  $('set-deluge-enabled').checked = s.deluge.enabled;
+  $('set-deluge-url').value = s.deluge.base_url;
+  $('set-deluge-password').placeholder = s.deluge.has_password ? '•••••••• (enregistré)' : '';
+  $('set-deluge-password').value = '';
+  $('set-deluge-cert').value = s.deluge.client_cert;
+  $('set-deluge-key').value = s.deluge.client_key;
+  $('set-deluge-keypass').placeholder = s.deluge.has_key_password ? '•••••••• (enregistrée)' : '';
+  $('set-deluge-keypass').value = '';
+  $('set-deluge-ca').value = s.deluge.ca_cert;
+  $('set-deluge-dir').value = s.deluge.download_location;
+  $('set-deluge-label').value = s.deluge.label;
+  $('set-deluge-paused').checked = s.deluge.add_paused;
+  $('deluge-state').textContent = '';
+
   await buildServiceChoices(s.streaming.my_services);
 }
 
@@ -1616,6 +1641,18 @@ async function saveSettings(event) {
         },
         streaming: { my_services: [...servicesChoisis] },
         plex: { sync_watched: $('set-plex-sync').checked },
+        deluge: {
+          enabled: $('set-deluge-enabled').checked,
+          base_url: $('set-deluge-url').value.trim(),
+          password: $('set-deluge-password').value,
+          client_cert: $('set-deluge-cert').value.trim(),
+          client_key: $('set-deluge-key').value.trim(),
+          client_key_password: $('set-deluge-keypass').value,
+          ca_cert: $('set-deluge-ca').value.trim(),
+          download_location: $('set-deluge-dir').value.trim(),
+          label: $('set-deluge-label').value.trim(),
+          add_paused: $('set-deluge-paused').checked,
+        },
       }),
     });
     settingsNotice('Enregistré. Les réglages sont pris en compte immédiatement.', false);
@@ -2026,6 +2063,71 @@ function renderFiltersCount() {
   if ($('keyword').value.trim()) n += 1;
   if ($('hide-seen').checked) n += 1;
   $('filters-count').textContent = n || '';
+}
+
+/* -------------------------------- Deluge -------------------------------- */
+
+/** Diagnostic étape par étape : « ça ne marche pas » n'aide personne quand la
+ *  chaîne compte un certificat, un TLS, un mot de passe et un démon. */
+async function delugeTest() {
+  const bouton = $('deluge-test');
+  const box = $('deluge-state');
+  bouton.disabled = true;
+  bouton.textContent = 'Test en cours…';
+  box.textContent = '';
+  box.appendChild(el('p', 'settings-state', 'Connexion au serveur Deluge…'));
+
+  let r;
+  try {
+    r = await api('/api/deluge/test');
+  } catch (error) {
+    box.textContent = '';
+    box.appendChild(el('p', 'settings-state is-error', error.message));
+    bouton.disabled = false;
+    bouton.textContent = 'Tester la connexion';
+    return;
+  }
+
+  box.textContent = '';
+  (r.steps || []).forEach((etape) => {
+    const ligne = el('p', `settings-state ${etape.ok ? 'is-ok' : 'is-error'}`);
+    ligne.textContent = `${etape.ok ? '✓' : '✗'} ${etape.etape}`
+      + (etape.detail ? ` — ${etape.detail}` : '')
+      + (etape.erreur ? ` — ${etape.erreur}` : '');
+    box.appendChild(ligne);
+  });
+  if (!r.steps || !r.steps.length) {
+    box.appendChild(el('p', 'settings-state', r.message || 'Deluge n’est pas configuré.'));
+  }
+
+  bouton.disabled = false;
+  bouton.textContent = 'Tester la connexion';
+  await bootstrap();
+}
+
+/** Envoie un torrent au serveur, depuis sa ligne dans la fiche du film. */
+async function envoyerVersDeluge(slug, bouton) {
+  const initial = bouton.textContent;
+  bouton.disabled = true;
+  bouton.textContent = 'Envoi…';
+
+  try {
+    const r = await api('/api/deluge/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug }),
+    });
+    // « Déjà présent » n'est pas une erreur : c'est une information utile.
+    bouton.textContent = r.added ? 'Envoyé' : 'Déjà là';
+    bouton.classList.add(r.added ? 'is-done' : 'is-known');
+    bouton.title = r.message || '';
+  } catch (error) {
+    bouton.disabled = false;
+    bouton.textContent = initial;
+    bouton.classList.add('is-failed');
+    bouton.title = error.message;
+    showNotice(`Deluge : ${error.message}`, true);
+  }
 }
 
 bootstrap();

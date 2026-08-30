@@ -364,6 +364,27 @@ donc une légère inversion à la jointure entre deux pages est possible. Reclas
 tout à chaque chargement ferait sauter les films déjà lus sous les yeux, ce qui
 serait pire.
 
+## Deluge
+
+Chaque torrent listé dans la fiche d'un film porte un bouton **Deluge** qui
+lance le téléchargement sur le serveur.
+
+Trouveur récupère le `.torrent` auprès du tracker — il détient la clé — puis le
+transmet en base64 via `core.add_torrent_file` de l'API JSON-RPC de Deluge.
+Conséquence utile : **Deluge n'a besoin ni de la clé du tracker, ni de pouvoir
+l'atteindre**.
+
+L'accès protégé par certificat client est pris en charge : `client_cert`,
+`client_key` et une phrase de passe facultative, plus `ca_cert` si l'autorité
+est privée. Le format attendu est le PEM ; un `.p12` doit être converti, ce que
+le message d'erreur explique avec la commande exacte plutôt que d'échouer sur
+une erreur SSL obscure.
+
+Le bouton **Tester la connexion** des réglages déroule le diagnostic étape par
+étape — lecture du certificat, TLS, authentification, liaison au démon — parce
+qu'un simple « ça ne marche pas » n'aide personne sur une chaîne de cette
+longueur.
+
 ## Sur téléphone
 
 L'interface est pensée pour le mobile, où elle est surtout consultée.
