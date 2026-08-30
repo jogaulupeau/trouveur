@@ -137,6 +137,17 @@ outre. La liaison reste chiffrée, mais Trouveur ne vérifie plus à qui il parl
 Le bouton **Tester la connexion** déroule le diagnostic étape par étape :
 lecture du certificat, négociation TLS, authentification, liaison au démon.
 
+### Badges « Plex »
+
+Trouveur garde en mémoire l'inventaire de ta bibliothèque et le relit toutes les
+dix minutes (`plex.refresh_seconds`). Un film ajouté ou retiré sur ton serveur
+met donc au plus ce délai à se voir sur les affiches, et seulement au moment où
+une grille est affichée.
+
+Le bouton **Rafraîchir la bibliothèque Plex** le relit sur-le-champ et annonce
+ce qui a bougé — « 1 248 films (+3, −1) ». Les badges de la grille en cours sont
+redessinés dans la foulée.
+
 ## Journal
 
 `log_level` règle la verbosité. La synchronisation Plex et la reprise des

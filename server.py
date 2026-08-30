@@ -267,6 +267,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(_list_payload(seen.IGNORED))
             elif path == "/api/plex/sync":
                 self._send_json(sync_plex_watched())
+            elif path == "/api/plex/refresh":
+                self._send_json(refresh_plex_library())
             elif path == "/api/availability":
                 self._send_json(self._availability(params))
             else:
@@ -618,6 +620,16 @@ def sync_plex_watched() -> dict[str, Any]:
     result = seen.SEEN.sync_from_plex(watched)
     result["watched_on_plex"] = len(watched)
     return result
+
+
+def refresh_plex_library() -> dict[str, Any]:
+    """Relit la bibliotheque Plex sans attendre l'expiration de l'inventaire."""
+    if not PLEX.configured:
+        return {"disabled": True}
+    try:
+        return PLEX.refresh()
+    except PlexError as exc:
+        return {"error": str(exc)}
 
 
 def _one(params: dict[str, list[str]], key: str, default: str) -> str:

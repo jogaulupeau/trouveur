@@ -118,12 +118,16 @@ class Plex:
         by_tmdb: dict[int, dict[str, Any]] = {}
         by_imdb: dict[str, dict[str, Any]] = {}
         by_title: dict[str, dict[str, Any]] = {}
+        # Identifiants Plex des films presents, pour comparer deux inventaires.
+        presents: set[str] = set()
 
         total = 0
         for key in self._movie_sections():
             for raw in self._fetch_section(key):
                 entry = self._entry(raw)
                 total += 1
+                presents.add(entry["rating_key"]
+                             or _title_key(entry["title"], entry["year"]))
                 if entry["tmdb_id"] is not None:
                     by_tmdb[entry["tmdb_id"]] = entry
                 if entry["imdb_id"]:
@@ -135,6 +139,7 @@ class Plex:
             "by_tmdb": by_tmdb,
             "by_imdb": by_imdb,
             "by_title": by_title,
+            "presents": presents,
             "count": total,
         }
 
@@ -181,6 +186,28 @@ class Plex:
             self._index = index
             self._indexed_at = time.time()
             return index
+
+    def refresh(self) -> dict[str, Any]:
+        """Relit la bibliotheque sur-le-champ et resume ce qui a change.
+
+        Sans cela il faut attendre refresh_seconds — dix minutes par defaut —
+        pour qu'un film ajoute ou retire se voie dans les badges.
+        """
+        with self._lock:
+            avant = self._index["presents"] if self._index else None
+
+        index = self.index(force=True)
+        resultat: dict[str, Any] = {"count": index["count"]}
+        if avant is None:
+            # Rien a comparer : premier inventaire depuis le demarrage.
+            resultat["known"] = False
+            return resultat
+
+        apres = index["presents"]
+        resultat["known"] = True
+        resultat["added"] = len(apres - avant)
+        resultat["removed"] = len(avant - apres)
+        return resultat
 
     # -- consultation ------------------------------------------------------
 

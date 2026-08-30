@@ -587,6 +587,7 @@ function bindEvents() {
   $('settings-form').addEventListener('submit', saveSettings);
   $('plex-connect').addEventListener('click', plexConnect);
   $('plex-sync-now').addEventListener('click', plexSyncNow);
+  $('plex-refresh-now').addEventListener('click', plexRefreshNow);
   $('deluge-test').addEventListener('click', delugeTest);
   ROLES_CERT.forEach((role) => {
     $(`cert-${role}-file`).addEventListener('change', (e) => deposerCertificat(role, e.target));
@@ -1594,6 +1595,7 @@ async function loadSettings() {
   $('plex-state').className = 'settings-state' + (s.plex.has_token ? ' is-ok' : '');
   $('plex-servers').textContent = '';
   $('plex-sync-state').textContent = '';
+  $('plex-refresh-state').textContent = '';
   $('import-state').textContent = '';
   $('set-deluge-enabled').checked = s.deluge.enabled;
   $('set-deluge-url').value = s.deluge.base_url;
@@ -1892,6 +1894,50 @@ async function buildServiceChoices(selection) {
     });
     box.appendChild(chip);
   });
+}
+
+/* ---- relecture de la bibliothèque Plex à la demande ---- */
+
+async function plexRefreshNow() {
+  const bouton = $('plex-refresh-now');
+  const etat = $('plex-refresh-state');
+  bouton.disabled = true;
+  bouton.textContent = 'Relecture…';
+  etat.textContent = 'Inventaire de ta bibliothèque Plex…';
+  etat.className = 'settings-state';
+
+  try {
+    const r = await api('/api/plex/refresh');
+    if (r.disabled) {
+      etat.textContent = 'Aucun serveur Plex connecté.';
+    } else if (r.error) {
+      etat.textContent = r.error;
+      etat.className = 'settings-state is-error';
+    } else {
+      const films = `${r.count} film${r.count > 1 ? 's' : ''}`;
+      let bilan = '.';
+      if (r.known) {
+        // Sans inventaire précédent, annoncer « aucun changement » serait faux.
+        const bouges = [];
+        if (r.added) bouges.push(`+${r.added}`);
+        if (r.removed) bouges.push(`−${r.removed}`);
+        bilan = bouges.length ? ` (${bouges.join(', ')}).` : ', rien de changé.';
+      }
+      etat.textContent = `Bibliothèque relue : ${films}${bilan}`;
+      etat.className = 'settings-state is-ok';
+      // Les badges déjà dessinés viennent de l'ancien inventaire.
+      state.avail.clear();
+      const visibles = [...$('grid').children]
+        .map((carte) => carte._movie).filter(Boolean);
+      if (visibles.length) await loadAvailability(visibles);
+    }
+  } catch (error) {
+    etat.textContent = error.message;
+    etat.className = 'settings-state is-error';
+  } finally {
+    bouton.disabled = false;
+    bouton.textContent = 'Rafraîchir la bibliothèque Plex';
+  }
 }
 
 /* ---- synchronisation Plex à la demande ---- */
