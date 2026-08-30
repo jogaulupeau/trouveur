@@ -1699,3 +1699,39 @@ input[type="file"]::file-selector-button {
   /* Le bandeau doit passer à la ligne plutôt que d'élargir la page. */
   .results-meta { overflow-wrap: anywhere; }
 }
+
+/* ------------------- fiche du film sur petit écran -------------------
+   Même piège que pour la mise en page principale : la piste « 1fr » de
+   .sheet-main s'élargissait pour contenir la rangée « Dans le même esprit »
+   (dix vignettes, ~1188 px), et toute la fiche débordait avec elle.
+   ------------------------------------------------------------------ */
+@media (max-width: 700px) {
+  .sheet-main { grid-template-columns: minmax(0, 1fr); }
+  /* Un enfant de grille a lui aussi « min-width: auto » par défaut : sans
+     cela il reproduirait le débordement un cran plus bas. */
+  .sheet-main > * { min-width: 0; }
+  .sheet-section { min-width: 0; }
+  .similar-row { max-width: 100%; }
+
+  /* La colonne unique reste la bonne disposition : le synopsis, la
+     bande-annonce et les torrents ont besoin de toute la largeur. On gagne
+     de la hauteur plutôt que de la largeur. */
+  .sheet-main { gap: 16px; margin-top: -56px; }
+  .sheet-poster { width: 116px; }
+  .sheet-title { font-size: 21px; }
+  .sheet-hero { min-height: 150px; }
+  .sheet-section { margin-top: 20px; }
+}
+
+@media (max-width: 460px) {
+  .sheet { border-radius: 14px; }
+  .sheet-main { gap: 12px; }
+  .sheet-poster { width: 96px; }
+  .sheet-title { font-size: 19px; }
+  .sheet-facts { gap: 6px; font-size: 12px; }
+  .score { padding: 10px 12px; }
+  .score-big { font-size: 25px; }
+  .score-meta { margin-left: auto; }
+  .score-bar { width: 84px; }
+  .cast { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 10px; }
+}

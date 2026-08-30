@@ -392,6 +392,14 @@ de l'écran : ascenseur horizontal, et la grille calculait trois colonnes de
 films là où il n'y a la place que pour deux. `minmax(0, 1fr)` lève ce minimum,
 et la barre d'onglets défile alors dans son propre cadre.
 
+La fiche d'un film souffrait du même défaut, en pire : sa rangée « Dans le
+même esprit » (dix vignettes, ~1188 px) élargissait la colonne, et la fiche
+entière débordait de plus du double de l'écran. Là aussi `minmax(0, 1fr)`, plus
+`min-width: 0` sur les enfants — un enfant de grille a lui aussi un minimum
+implicite, qui reproduirait le débordement un cran plus bas. Les rangées de
+vignettes défilent désormais dans leur propre cadre, et la fiche gagne en
+hauteur (affiche plus petite, bandeau moins haut).
+
 Au-dessus de 1080 px, rien ne change : le panneau reste fixe à gauche.
 
 ## Écran de réglages
