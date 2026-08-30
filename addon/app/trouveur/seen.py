@@ -163,6 +163,43 @@ class MovieList:
             self._write(data)
         return True
 
+    def import_movies(self, movies: dict[str, Any]) -> dict[str, Any]:
+        """Fusionne une liste importee. N'ecrase jamais une entree existante.
+
+        Un film deja present garde sa date et sa provenance : reimporter une
+        vieille sauvegarde ne doit pas rajeunir l'historique ni effacer ce qui
+        a ete fait depuis.
+        """
+        ajoutes, ignores, invalides = 0, 0, 0
+        with self._lock:
+            data = self._read()
+            for cle, valeur in (movies or {}).items():
+                if not isinstance(valeur, dict):
+                    invalides += 1
+                    continue
+                try:
+                    movie_id = int(valeur.get("id", cle))
+                except (TypeError, ValueError):
+                    invalides += 1
+                    continue
+                if str(movie_id) in data["movies"]:
+                    ignores += 1
+                    continue
+                entree = self._entry(
+                    {"id": movie_id, "title": valeur.get("title"),
+                     "year": valeur.get("year"), "poster": valeur.get("poster")},
+                    valeur.get("source") or "import",
+                )
+                # La date d'origine vaut mieux que celle de l'import.
+                if isinstance(valeur.get("seen_at"), str):
+                    entree["seen_at"] = valeur["seen_at"]
+                data["movies"][str(movie_id)] = entree
+                ajoutes += 1
+            if ajoutes:
+                self._write(data)
+        return {"added": ajoutes, "skipped": ignores, "invalid": invalides,
+                "total": len(self.ids())}
+
     def sync_from_plex(self, watched: list[dict[str, Any]]) -> dict[str, Any]:
         """Ajoute les films lus sur Plex. N'enleve jamais rien."""
         with self._lock:

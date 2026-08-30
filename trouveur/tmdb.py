@@ -112,7 +112,7 @@ class Tmdb:
         data = self._call("/genre/movie/list", {"language": self.language})
         return data.get("genres", []) if data else []
 
-    def providers(self, limit: int = 24) -> list[dict[str, Any]]:
+    def providers(self, limit: int = 24, toutes: bool = False) -> list[dict[str, Any]]:
         """Plateformes de streaming disponibles dans la region, les plus
         courantes d'abord."""
         data = self._call(
@@ -134,7 +134,7 @@ class Tmdb:
             # gratuit, sans rapport avec le serveur Plex de l'utilisateur :
             # les presenter cote a cote ne ferait qu'embrouiller.
             if p.get("provider_id") != 538 and p.get("provider_id")
-            and (not self.my_services or p["provider_id"] in self.my_services)
+            and (toutes or not self.my_services or p["provider_id"] in self.my_services)
         ][:limit]
 
     def watch_providers_for(self, movie_id: int) -> set[int]:

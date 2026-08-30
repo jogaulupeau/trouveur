@@ -575,6 +575,8 @@ function bindEvents() {
   $('settings-close').addEventListener('click', closeSettings);
   $('settings-form').addEventListener('submit', saveSettings);
   $('plex-connect').addEventListener('click', plexConnect);
+  $('plex-sync-now').addEventListener('click', plexSyncNow);
+  $('set-import').addEventListener('change', importerFichiers);
   $('settings-backdrop').addEventListener('click', (event) => {
     if (event.target === $('settings-backdrop')) closeSettings();
   });
@@ -1566,6 +1568,9 @@ async function loadSettings() {
     : 'Aucun serveur connecté.';
   $('plex-state').className = 'settings-state' + (s.plex.has_token ? ' is-ok' : '');
   $('plex-servers').textContent = '';
+  $('plex-sync-state').textContent = '';
+  $('import-state').textContent = '';
+  await buildServiceChoices(s.streaming.my_services);
 }
 
 function settingsNotice(message, isError) {
@@ -1598,6 +1603,7 @@ async function saveSettings(event) {
           base_url: $('set-tracker-url').value.trim(),
           api_key: $('set-tracker-key').value.trim(),
         },
+        streaming: { my_services: [...servicesChoisis] },
         plex: { sync_watched: $('set-plex-sync').checked },
       }),
     });
@@ -1724,6 +1730,147 @@ async function plexFinish(index, bouton) {
     $('plex-state').className = 'settings-state is-error';
     if (bouton) bouton.disabled = false;
   }
+}
+
+/* ---- abonnements ---- */
+
+let servicesChoisis = new Set();
+
+async function buildServiceChoices(selection) {
+  const box = $('set-services');
+  box.textContent = '';
+  servicesChoisis = new Set((selection || []).map(Number));
+
+  let data;
+  try {
+    // « all » : sans lui on ne verrait que les services déjà cochés, et il
+    // deviendrait impossible d'en ajouter un.
+    data = await api('/api/providers?all=1');
+  } catch (error) {
+    box.appendChild(el('p', 'settings-state is-error', error.message));
+    return;
+  }
+
+  (data.providers || []).filter((p) => !p.local).forEach((provider) => {
+    const chip = el('button', 'provider');
+    chip.type = 'button';
+    chip.title = provider.name;
+    chip.classList.toggle('is-on', servicesChoisis.has(provider.id));
+    if (provider.logo) {
+      const logo = document.createElement('img');
+      logo.src = provider.logo;
+      logo.alt = '';
+      chip.appendChild(logo);
+    }
+    chip.appendChild(el('span', 'provider-name', provider.name));
+    chip.addEventListener('click', () => {
+      if (servicesChoisis.has(provider.id)) servicesChoisis.delete(provider.id);
+      else servicesChoisis.add(provider.id);
+      chip.classList.toggle('is-on', servicesChoisis.has(provider.id));
+    });
+    box.appendChild(chip);
+  });
+}
+
+/* ---- synchronisation Plex à la demande ---- */
+
+async function plexSyncNow() {
+  const bouton = $('plex-sync-now');
+  const etat = $('plex-sync-state');
+  bouton.disabled = true;
+  bouton.textContent = 'Synchronisation…';
+  etat.textContent = 'Lecture de ta bibliothèque Plex…';
+  etat.className = 'settings-state';
+
+  try {
+    const r = await api('/api/plex/sync');
+    if (r.disabled) {
+      etat.textContent = 'Aucun serveur Plex connecté.';
+    } else if (r.error) {
+      etat.textContent = r.error;
+      etat.className = 'settings-state is-error';
+    } else {
+      const n = r.added || 0;
+      etat.textContent = n
+        ? `${n} film${n > 1 ? 's' : ''} ajouté${n > 1 ? 's' : ''} aux déjà vus `
+          + `(${r.watched_on_plex} lus sur Plex).`
+        : `Rien à ajouter : les ${r.watched_on_plex} films lus sur Plex y sont déjà.`;
+      etat.className = 'settings-state is-ok';
+      await bootstrap();   // le compteur de l'onglet doit suivre
+    }
+  } catch (error) {
+    etat.textContent = error.message;
+    etat.className = 'settings-state is-error';
+  } finally {
+    bouton.disabled = false;
+    bouton.textContent = 'Synchroniser les « déjà vus » maintenant';
+  }
+}
+
+/* ---- import d'une base existante ---- */
+
+const LISTES_CONNUES = {
+  'seen.json': 'seen',
+  'watchlist.json': 'watchlist',
+  'ignored.json': 'ignored',
+};
+
+/** Devine la liste visée d'après le nom du fichier. */
+function listeDuFichier(nom) {
+  const base = nom.toLowerCase().split(/[\\/]/).pop();
+  if (LISTES_CONNUES[base]) return LISTES_CONNUES[base];
+  // Tolère seen.json.backup, seen-2026.json, mon_seen.json…
+  const trouve = Object.keys(LISTES_CONNUES).find((c) => base.includes(c.replace('.json', '')));
+  return trouve ? LISTES_CONNUES[trouve] : null;
+}
+
+async function importerFichiers(event) {
+  const fichiers = [...event.target.files];
+  const etat = $('import-state');
+  if (!fichiers.length) return;
+
+  etat.className = 'settings-state';
+  etat.textContent = 'Lecture…';
+  const lignes = [];
+
+  for (const fichier of fichiers) {
+    const liste = listeDuFichier(fichier.name);
+    if (!liste) {
+      lignes.push(`${fichier.name} : liste non reconnue, ignoré.`);
+      continue;
+    }
+    let contenu;
+    try {
+      contenu = JSON.parse(await fichier.text());
+    } catch (error) {
+      lignes.push(`${fichier.name} : JSON illisible, ignoré.`);
+      continue;
+    }
+    if (!contenu || typeof contenu.movies !== 'object') {
+      lignes.push(`${fichier.name} : format inattendu, ignoré.`);
+      continue;
+    }
+    try {
+      const r = await api('/api/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ list: liste, movies: contenu.movies }),
+      });
+      lignes.push(
+        `${fichier.name} : ${r.added} ajouté${r.added > 1 ? 's' : ''}, `
+        + `${r.skipped} déjà présent${r.skipped > 1 ? 's' : ''}`
+        + (r.invalid ? `, ${r.invalid} invalide${r.invalid > 1 ? 's' : ''}` : '')
+        + ` — ${r.total} au total.`,
+      );
+    } catch (error) {
+      lignes.push(`${fichier.name} : ${error.message}`);
+    }
+  }
+
+  etat.textContent = lignes.join(' ');
+  etat.className = 'settings-state is-ok';
+  event.target.value = '';   // permet de réimporter le même fichier
+  await bootstrap();
 }
 
 bootstrap();

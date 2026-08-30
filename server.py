@@ -89,6 +89,20 @@ class Handler(BaseHTTPRequestHandler):
                 reload_services()
                 self._send_json(resultat)
                 return
+            if chemin == "/api/import":
+                corps = self._read_json_body()
+                store = _store_for("/api/" + str(corps.get("list") or ""))
+                if store is None:
+                    self._send_json({"error": "Liste inconnue"}, status=400)
+                    return
+                movies = corps.get("movies")
+                if not isinstance(movies, dict):
+                    self._send_json(
+                        {"error": "Fichier inattendu : un objet « movies » est attendu."},
+                        status=400)
+                    return
+                self._send_json(store.import_movies(movies))
+                return
             if chemin == "/api/plex/login/start":
                 self._send_json(settings_module.plex_login_start())
                 return
@@ -183,7 +197,7 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 self._send_json(_sans_interne(settings_module.plex_login_poll(pin)))
             elif path == "/api/providers":
-                self._send_json(self._providers())
+                self._send_json(self._providers(_one(params, "all", "0") == "1"))
             elif path == "/api/foryou":
                 self._send_json(FORYOU.page(
                     seen.SEEN.all()["movies"],
@@ -286,15 +300,19 @@ class Handler(BaseHTTPRequestHandler):
                 filters["plex_ids"] = set(PLEX.index()["by_tmdb"])
         return filters
 
-    def _providers(self) -> dict[str, Any]:
-        """Plateformes proposees a l'utilisateur, son serveur Plex en tete."""
+    def _providers(self, toutes: bool = False) -> dict[str, Any]:
+        """Plateformes proposees a l'utilisateur, son serveur Plex en tete.
+
+        « toutes » ignore le filtre des abonnements : c'est ce dont l'ecran de
+        reglages a besoin pour laisser choisir ses abonnements.
+        """
         plateformes = []
         if PLEX.configured:
             # Ton serveur n'est pas un fournisseur TMDB : il est traite a part,
             # mais presente au meme niveau que les autres.
             plateformes.append({"id": "plex", "name": "Mon serveur Plex", "logo": None,
                                 "local": True})
-        plateformes.extend(dict(p, local=False) for p in TMDB.providers())
+        plateformes.extend(dict(p, local=False) for p in TMDB.providers(toutes=toutes))
         return {"providers": plateformes, "region": TMDB.region}
 
     def _discover(self, params: dict[str, list[str]]) -> dict[str, Any]:

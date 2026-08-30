@@ -364,6 +364,27 @@ donc une légère inversion à la jointure entre deux pages est possible. Reclas
 tout à chaque chargement ferait sauter les films déjà lus sous les yeux, ce qui
 serait pire.
 
+## Écran de réglages
+
+Le bouton **Réglages** ouvre la configuration : clé TMDB, abonnements de
+streaming, connexion Plex, tracker, et import de listes existantes. Tout se fait
+depuis le navigateur — indispensable dans un add-on Home Assistant, où aucun
+terminal n'est disponible.
+
+Deux règles y sont tenues partout :
+
+- **Aucun secret ne repart vers le navigateur.** L'interface reçoit un
+  « renseignée / vide » par clé, jamais la valeur.
+- **Un champ vide veut dire « inchangé »**, jamais « efface ». On peut
+  enregistrer sans ressaisir ses clés.
+
+La connexion Plex utilise le « Se connecter avec Plex » officiel : la page
+d'approbation s'ouvre chez Plex, les serveurs du compte sont ensuite découverts
+avec leurs adresses, et celle qui répond est retenue. Aucun jeton à recopier.
+
+L'import de listes est additif : un film déjà présent garde sa date et sa
+provenance. Réimporter la même sauvegarde deux fois est sans effet.
+
 ## Home Assistant
 
 Trouveur s'installe comme add-on Home Assistant, avec son interface dans la

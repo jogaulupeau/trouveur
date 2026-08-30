@@ -33,7 +33,7 @@ régler depuis l'interface.
 | --- | --- |
 | `tmdb_api_key` | Clé v3 ou jeton v4 de [TMDB](https://www.themoviedb.org/settings/api). Peut aussi être saisie dans l'écran **Réglages** de l'interface. |
 | `tmdb_language`, `tmdb_region` | Langue des fiches et région pour les dates et les plateformes. |
-| `my_services` | Identifiants TMDB de vos abonnements. Vide = tous les services. Netflix 8 · Prime Video 119 · Disney+ 337 · Apple TV+ 350 · Canal+ 381 · Paramount+ 531 |
+| `my_services` | Identifiants TMDB de vos abonnements. Se règle plus simplement dans **Réglages → Mes abonnements**, avec les logos. Vide = tous les services. |
 | `tracker_*` | Indexeur Torznab : activation, adresse, clé d'API. |
 | `plex_*` | Serveur Plex : activation, adresse, jeton, vérification TLS, reprise des films déjà vus. |
 
@@ -53,8 +53,16 @@ Il est inclus dans les sauvegardes Home Assistant, partielles comme complètes.
 
 ### Reprendre des listes existantes
 
-Si Trouveur tournait déjà ailleurs, ses listes se récupèrent au **premier
-démarrage** :
+Le plus simple : dans l'interface, **Réglages** → **Mes listes**, et choisir un
+ou plusieurs fichiers `seen.json`, `watchlist.json`, `ignored.json`. La liste
+visée est déduite du nom du fichier.
+
+L'import est **additif** : un film déjà présent garde sa date et sa provenance,
+rien n'est remplacé ni supprimé. Réimporter deux fois la même sauvegarde est
+donc sans effet.
+
+L'autre voie, utile pour amorcer une installation neuve, passe par le dossier
+partagé au **premier démarrage** :
 
 1. Créer un dossier `trouveur` dans le partage `share` de Home Assistant
    (`\\homeassistant\share\trouveur\`).
@@ -81,6 +89,10 @@ aucun terminal.
 
 L'identifiant d'installation (`plex.client_id`) est conservé d'un démarrage à
 l'autre : les options ne l'écrasent pas, il n'y a donc pas à se reconnecter.
+
+Le bouton **Synchroniser les « déjà vus » maintenant** reporte immédiatement
+les films lus sur Plex, sans attendre le prochain démarrage. Comme la
+synchronisation automatique, il n'ajoute que l'inédit et ne retire jamais rien.
 
 ## Journal
 

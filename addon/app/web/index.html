@@ -232,8 +232,36 @@
           <label class="switch settings-switch">
             <input type="checkbox" id="set-plex-sync">
             <span class="switch-track"><span class="switch-knob"></span></span>
-            <span class="switch-label">Reprendre les films vus sur Plex</span>
+            <span class="switch-label">Reprendre les films vus sur Plex au démarrage</span>
           </label>
+          <button type="button" class="btn btn-ghost settings-sync" id="plex-sync-now">
+            Synchroniser les « déjà vus » maintenant
+          </button>
+          <p class="settings-state" id="plex-sync-state"></p>
+        </section>
+
+        <section class="settings-block">
+          <h4>Mes abonnements</h4>
+          <p class="settings-help">
+            Seuls les services cochés sont proposés en filtre et affichés en badge
+            sur les affiches. Aucun coché = tous les services de la région.
+            Ton serveur Plex est indépendant de cette liste.
+          </p>
+          <div class="providers" id="set-services"></div>
+        </section>
+
+        <section class="settings-block">
+          <h4>Mes listes</h4>
+          <p class="settings-help">
+            Reprendre des listes venant d'une autre installation. L'import est
+            <strong>additif</strong> : un film déjà présent garde sa date et sa
+            provenance, rien n'est jamais remplacé ni supprimé.
+          </p>
+          <label class="settings-field">
+            <span>Fichiers à importer (seen.json, watchlist.json, ignored.json)</span>
+            <input type="file" id="set-import" accept=".json,application/json" multiple>
+          </label>
+          <p class="settings-state" id="import-state"></p>
         </section>
 
         <section class="settings-block">
