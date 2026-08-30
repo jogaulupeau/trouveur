@@ -1,0 +1,24 @@
+# Secrets et données personnelles — jamais versionnés.
+config.json
+seen.json
+watchlist.json
+ignored.json
+
+# Toutes les variantes produites par les protections du stockage : copies de
+# secours, mises en quarantaine, écritures atomiques, sauvegardes datées.
+# Elles contiennent exactement les mêmes données que les fichiers ci-dessus.
+*.backup
+*.corrompu-*
+*.tmp
+*.avant-*
+
+# Volumes de données alternatifs (TROUVEUR_DATA_DIR)
+data/
+
+.cache/
+__pycache__/
+*.pyc
+
+# Assemblage de l'add-on, produit par package_addon.py
+addon/app/
+.tv-hass-data

@@ -1,0 +1,59 @@
+name: Trouveur
+version: "1.0.0"
+slug: trouveur
+description: >-
+  Propositions de films selon vos critères, avec disponibilité sur votre
+  serveur Plex, sur vos plateformes de streaming et sur votre tracker.
+url: https://github.com/jogaulupeau/trouveur
+arch:
+  - aarch64
+  - amd64
+  - armv7
+init: false
+startup: application
+boot: auto
+
+# L'interface passe par l'ingress : elle apparaît dans la barre latérale de
+# Home Assistant, sans port à ouvrir ni authentification à gérer.
+ingress: true
+ingress_port: 8777
+panel_icon: mdi:filmstrip
+panel_title: Trouveur
+
+# Seule concession au système de fichiers de Home Assistant : le dossier
+# partagé, en lecture seule, pour reprendre des listes existantes au premier
+# démarrage. Tout ce que l'add-on écrit va dans son volume /data, qui survit
+# aux mises à jour.
+map:
+  - share:ro
+
+options:
+  tmdb_api_key: ""
+  tmdb_language: fr-FR
+  tmdb_region: FR
+  my_services: []
+  tracker_enabled: false
+  tracker_base_url: https://tr4ker.net
+  tracker_api_key: ""
+  plex_enabled: false
+  plex_base_url: ""
+  plex_token: ""
+  plex_verify_tls: true
+  plex_sync_watched: true
+  log_level: info
+
+schema:
+  tmdb_api_key: str
+  tmdb_language: str
+  tmdb_region: str
+  my_services:
+    - int
+  tracker_enabled: bool
+  tracker_base_url: str
+  tracker_api_key: password
+  plex_enabled: bool
+  plex_base_url: str
+  plex_token: password
+  plex_verify_tls: bool
+  plex_sync_watched: bool
+  log_level: list(trace|debug|info|warning|error|fatal)
