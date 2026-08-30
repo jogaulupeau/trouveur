@@ -420,6 +420,7 @@ async function buildProviders() {
       if (state.providers.has(id)) state.providers.delete(id);
       else state.providers.add(id);
       chip.classList.toggle('is-on', state.providers.has(id));
+      renderFiltersCount();
       if (state.mode === 'foryou') refreshForYouSoon();
     });
     box.appendChild(chip);
@@ -456,6 +457,7 @@ function cycleGenre(id, chip) {
   // En mode « Pour toi » le panneau n'a pas de bouton de validation : le
   // changement doit prendre effet tout de suite.
   if (state.mode === 'foryou') refreshForYouSoon();
+  renderFiltersCount();
 }
 
 let refreshTimer = null;
@@ -502,10 +504,17 @@ function buildDecades() {
 function bindEvents() {
   $('criteria').addEventListener('submit', (event) => {
     event.preventDefault();
+    closeFilters();          // on vient de demander des résultats : on les montre
     runSearch();
   });
 
   $('reset').addEventListener('click', resetCriteria);
+
+  $('open-filters').addEventListener('click', openFilters);
+  $('close-filters').addEventListener('click', closeFilters);
+  $('panel-veil').addEventListener('click', closeFilters);
+  $('criteria').addEventListener('input', renderFiltersCount);
+  $('criteria').addEventListener('change', renderFiltersCount);
 
   // En mode « Pour toi » le panneau n'a pas de bouton de validation : tout
   // changement de critère doit prendre effet de lui-même.
@@ -589,6 +598,7 @@ function bindEvents() {
     if (event.key !== 'Escape') return;
     if (!$('sheet-backdrop').hidden) closeSheet();
     else if (!$('settings-backdrop').hidden) closeSettings();
+    else if ($('panel').classList.contains('is-open')) closeFilters();
   });
 }
 
@@ -619,6 +629,7 @@ function resetCriteria() {
   state.providers.clear();
   [...$('providers').children].forEach((c) => c.classList.remove('is-on'));
   syncRangeLabels();
+  renderFiltersCount();
   showNotice(null);
 }
 
@@ -1610,7 +1621,43 @@ async function saveSettings(event) {
     settingsNotice('Enregistré. Les réglages sont pris en compte immédiatement.', false);
     await loadSettings();
     // Le bandeau, les genres et les plateformes dépendent de la configuration.
-    await bootstrap();
+    await /* --------------------------- tiroir de filtres --------------------------- */
+
+/** Le tiroir n'existe qu'en dessous de 1080 px ; au-dessus le panneau est fixe. */
+function filtresEnTiroir() {
+  return matchMedia('(max-width: 1080px)').matches;
+}
+
+function openFilters() {
+  if (!filtresEnTiroir()) return;
+  $('panel').classList.add('is-open');
+  $('panel-veil').hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeFilters() {
+  $('panel').classList.remove('is-open');
+  $('panel-veil').hidden = true;
+  // La fiche peut être ouverte par-dessus : ne pas lui rendre le défilement.
+  if ($('sheet-backdrop').hidden && $('settings-backdrop').hidden) {
+    document.body.style.overflow = '';
+  }
+}
+
+/** Compte les critères actifs, pour que le bouton dise s'il se passe quelque
+ *  chose derrière lui — sinon le tiroir fermé cache l'état des filtres. */
+function renderFiltersCount() {
+  let n = state.genreChoice.size + state.providers.size;
+  if ($('year-min').value.trim() || $('year-max').value.trim()) n += 1;
+  if (parseFloat($('rating-min').value) !== 6.5) n += 1;
+  if (parseInt($('runtime-max').value, 10) < 245) n += 1;
+  if ($('original-language').value) n += 1;
+  if ($('keyword').value.trim()) n += 1;
+  if ($('hide-seen').checked) n += 1;
+  $('filters-count').textContent = n || '';
+}
+
+bootstrap();
   } catch (error) {
     settingsNotice(error.message, true);
   } finally {
@@ -1724,7 +1771,43 @@ async function plexFinish(index, bouton) {
     $('plex-state').className = 'settings-state is-ok';
     $('plex-servers').textContent = '';
     plexPin = null;
-    await bootstrap();
+    await /* --------------------------- tiroir de filtres --------------------------- */
+
+/** Le tiroir n'existe qu'en dessous de 1080 px ; au-dessus le panneau est fixe. */
+function filtresEnTiroir() {
+  return matchMedia('(max-width: 1080px)').matches;
+}
+
+function openFilters() {
+  if (!filtresEnTiroir()) return;
+  $('panel').classList.add('is-open');
+  $('panel-veil').hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeFilters() {
+  $('panel').classList.remove('is-open');
+  $('panel-veil').hidden = true;
+  // La fiche peut être ouverte par-dessus : ne pas lui rendre le défilement.
+  if ($('sheet-backdrop').hidden && $('settings-backdrop').hidden) {
+    document.body.style.overflow = '';
+  }
+}
+
+/** Compte les critères actifs, pour que le bouton dise s'il se passe quelque
+ *  chose derrière lui — sinon le tiroir fermé cache l'état des filtres. */
+function renderFiltersCount() {
+  let n = state.genreChoice.size + state.providers.size;
+  if ($('year-min').value.trim() || $('year-max').value.trim()) n += 1;
+  if (parseFloat($('rating-min').value) !== 6.5) n += 1;
+  if (parseInt($('runtime-max').value, 10) < 245) n += 1;
+  if ($('original-language').value) n += 1;
+  if ($('keyword').value.trim()) n += 1;
+  if ($('hide-seen').checked) n += 1;
+  $('filters-count').textContent = n || '';
+}
+
+bootstrap();
   } catch (error) {
     $('plex-state').textContent = error.message;
     $('plex-state').className = 'settings-state is-error';
@@ -1870,7 +1953,79 @@ async function importerFichiers(event) {
   etat.textContent = lignes.join(' ');
   etat.className = 'settings-state is-ok';
   event.target.value = '';   // permet de réimporter le même fichier
-  await bootstrap();
+  await /* --------------------------- tiroir de filtres --------------------------- */
+
+/** Le tiroir n'existe qu'en dessous de 1080 px ; au-dessus le panneau est fixe. */
+function filtresEnTiroir() {
+  return matchMedia('(max-width: 1080px)').matches;
+}
+
+function openFilters() {
+  if (!filtresEnTiroir()) return;
+  $('panel').classList.add('is-open');
+  $('panel-veil').hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeFilters() {
+  $('panel').classList.remove('is-open');
+  $('panel-veil').hidden = true;
+  // La fiche peut être ouverte par-dessus : ne pas lui rendre le défilement.
+  if ($('sheet-backdrop').hidden && $('settings-backdrop').hidden) {
+    document.body.style.overflow = '';
+  }
+}
+
+/** Compte les critères actifs, pour que le bouton dise s'il se passe quelque
+ *  chose derrière lui — sinon le tiroir fermé cache l'état des filtres. */
+function renderFiltersCount() {
+  let n = state.genreChoice.size + state.providers.size;
+  if ($('year-min').value.trim() || $('year-max').value.trim()) n += 1;
+  if (parseFloat($('rating-min').value) !== 6.5) n += 1;
+  if (parseInt($('runtime-max').value, 10) < 245) n += 1;
+  if ($('original-language').value) n += 1;
+  if ($('keyword').value.trim()) n += 1;
+  if ($('hide-seen').checked) n += 1;
+  $('filters-count').textContent = n || '';
+}
+
+bootstrap();
+}
+
+/* --------------------------- tiroir de filtres --------------------------- */
+
+/** Le tiroir n'existe qu'en dessous de 1080 px ; au-dessus le panneau est fixe. */
+function filtresEnTiroir() {
+  return matchMedia('(max-width: 1080px)').matches;
+}
+
+function openFilters() {
+  if (!filtresEnTiroir()) return;
+  $('panel').classList.add('is-open');
+  $('panel-veil').hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeFilters() {
+  $('panel').classList.remove('is-open');
+  $('panel-veil').hidden = true;
+  // La fiche peut être ouverte par-dessus : ne pas lui rendre le défilement.
+  if ($('sheet-backdrop').hidden && $('settings-backdrop').hidden) {
+    document.body.style.overflow = '';
+  }
+}
+
+/** Compte les critères actifs, pour que le bouton dise s'il se passe quelque
+ *  chose derrière lui — sinon le tiroir fermé cache l'état des filtres. */
+function renderFiltersCount() {
+  let n = state.genreChoice.size + state.providers.size;
+  if ($('year-min').value.trim() || $('year-max').value.trim()) n += 1;
+  if (parseFloat($('rating-min').value) !== 6.5) n += 1;
+  if (parseInt($('runtime-max').value, 10) < 245) n += 1;
+  if ($('original-language').value) n += 1;
+  if ($('keyword').value.trim()) n += 1;
+  if ($('hide-seen').checked) n += 1;
+  $('filters-count').textContent = n || '';
 }
 
 bootstrap();

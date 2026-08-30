@@ -1532,3 +1532,155 @@ input[type="file"]::file-selector-button {
   border-radius: 6px;
   cursor: pointer;
 }
+
+/* ============================== petits écrans =============================
+   Sur téléphone, le panneau de critères occupait 1120 px au-dessus de la
+   grille : il fallait défiler une fois et demie avant de voir un seul film.
+   Il devient un tiroir, et les résultats passent en premier.
+   ========================================================================= */
+
+.panel-head { display: none; }
+.open-filters { display: none; }
+
+.panel-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(5, 6, 10, 0.72);
+  backdrop-filter: blur(4px);
+  animation: fade 0.18s ease;
+}
+
+@media (max-width: 1080px) {
+  .layout { padding-top: 16px; }
+
+  /* Le panneau sort de la page : il ne pousse plus la grille vers le bas. */
+  .panel {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 60;
+    width: min(360px, 88vw);
+    max-height: none;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    transform: translateX(-102%);
+    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+    padding-bottom: calc(22px + env(safe-area-inset-bottom));
+  }
+  .panel.is-open { transform: none; }
+  @media (prefers-reduced-motion: reduce) { .panel { transition: none; } }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: -6px 0 18px;
+    font-family: var(--display);
+    font-size: 19px;
+    font-weight: 700;
+  }
+  .panel-close {
+    width: 40px;
+    height: 40px;
+    font-size: 24px;
+    line-height: 1;
+    color: var(--text-dim);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .open-filters {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 44px;
+    margin: 0 0 12px;
+    padding: 0 16px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .open-filters:hover { background: var(--surface-2); }
+  .funnel {
+    width: 14px;
+    height: 12px;
+    flex: none;
+    background: currentColor;
+    clip-path: polygon(0 0, 100% 0, 62% 45%, 62% 100%, 38% 82%, 38% 45%);
+  }
+  .filters-count {
+    min-width: 20px;
+    padding: 1px 7px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #1a1408;
+    background: var(--gold);
+    border-radius: 999px;
+  }
+  .filters-count:empty { display: none; }
+
+  /* En-tête compact : 220 px, c'est un cinquième de l'écran d'un téléphone. */
+  .masthead { gap: 12px; padding: 14px 16px 12px; }
+  .masthead-mark { width: 32px; height: 32px; }
+  .masthead h1 { font-size: 21px; }
+  .masthead-tagline { display: none; }
+  .masthead-status { display: none; }
+  .masthead-settings { min-height: 44px; padding: 0 14px; }
+  .search { order: 3; flex-basis: 100%; max-width: none; margin: 0; }
+  .search input[type="search"] { min-height: 44px; }
+  .search-go { min-height: 44px; }
+}
+
+/* -------- cibles tactiles : 44 px est la taille recommandée -------- */
+
+@media (pointer: coarse) {
+  .tab { min-height: 44px; }
+  .chip { min-height: 40px; display: inline-flex; align-items: center; }
+  .provider { min-height: 40px; }
+  .masthead-settings { min-height: 44px; }
+  .btn { min-height: 46px; }
+  .back-link { min-height: 44px; display: inline-flex; align-items: center; }
+  select, input[type="text"], input[type="number"], input[type="search"] { min-height: 44px; }
+
+  /* Sur une affiche de 168 px, trois cercles de 44 px mangeraient l'image :
+     38 px reste confortable au doigt sans masquer le film. */
+  .card-seen { min-height: 38px; padding: 0 12px 0 10px; }
+  .card-want, .card-hide { width: 38px; height: 38px; }
+  .card-want { top: 42px; }
+  .card-hide { top: 86px; }
+  .torrent-get, .torrent-page { min-height: 40px; display: inline-flex; align-items: center; }
+  .sheet-close { width: 44px; height: 44px; }
+  .similar-item { min-width: 108px; }
+}
+
+/* Le curseur natif est trop fin pour le doigt. */
+@media (pointer: coarse) {
+  input[type="range"] { height: 6px; }
+  input[type="range"]::-webkit-slider-thumb { width: 26px; height: 26px; }
+  input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; }
+}
+
+@media (max-width: 460px) {
+  .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+  .settings { padding: 22px 16px 20px; }
+  .sheet-main { padding-left: 16px; padding-right: 16px; }
+  .masthead h1 { font-size: 19px; }
+}
+
+/* Sur une carte de ~147 px, la pastille « Vu » (58 px) et les badges de
+   disponibilité (jusqu'à 129 px) ne tiennent pas côte à côte : ils se
+   chevauchaient. On les empile, badges au-dessus de la pastille. */
+@media (max-width: 560px) {
+  .card-avail { bottom: 52px; flex-wrap: nowrap; }
+  /* Trois badges passeraient sur deux lignes et remonteraient jusqu'au bouton
+     « ne plus proposer ». Deux suffisent ici ; la fiche du film les montre
+     tous. */
+  .card-avail > :nth-child(n + 3) { display: none; }
+}

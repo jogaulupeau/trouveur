@@ -364,6 +364,29 @@ donc une légère inversion à la jointure entre deux pages est possible. Reclas
 tout à chaque chargement ferait sauter les films déjà lus sous les yeux, ce qui
 serait pire.
 
+## Sur téléphone
+
+L'interface est pensée pour le mobile, où elle est surtout consultée.
+
+Le panneau de critères y devient un **tiroir** : il occupait 1120 px au-dessus
+de la grille, ce qui imposait de défiler une fois et demie avant de voir un
+seul film. Il s'ouvre par le bouton **Filtres**, qui affiche le nombre de
+critères actifs — sans quoi, tiroir fermé, on ne saurait pas ce qui filtre les
+résultats. Lancer une recherche le referme : on vient de demander des
+résultats, autant les montrer.
+
+L'en-tête passe de 220 à 127 px (accroche et état du tracker masqués, recherche
+sur sa propre ligne), et les cibles tactiles respectent les seuils usuels :
+44 px pour les onglets, boutons et champs, 40 px pour les pastilles. Les
+commandes des cartes restent à 38 px — trois cercles de 44 px sur une affiche
+de 147 px masqueraient le film.
+
+Sur une carte étroite, la pastille « Vu » et les badges de disponibilité ne
+tiennent pas côte à côte : les badges passent au-dessus, et sont limités à deux
+(la fiche du film les montre tous).
+
+Au-dessus de 1080 px, rien ne change : le panneau reste fixe à gauche.
+
 ## Écran de réglages
 
 Le bouton **Réglages** ouvre la configuration : clé TMDB, abonnements de

@@ -35,10 +35,16 @@
   </div>
 </header>
 
+<div class="panel-veil" id="panel-veil" hidden></div>
+
 <div class="layout">
 
   <!-- ------------------------------- critères ------------------------------- -->
   <aside class="panel" id="panel">
+    <div class="panel-head">
+      <span>Filtres</span>
+      <button type="button" class="panel-close" id="close-filters" aria-label="Fermer les filtres">&times;</button>
+    </div>
     <form id="criteria" autocomplete="off">
 
       <section class="field">
@@ -161,6 +167,12 @@
       </div>
       <p class="results-meta" id="results-meta"></p>
     </div>
+
+    <button type="button" class="open-filters" id="open-filters">
+      <span class="funnel" aria-hidden="true"></span>
+      <span>Filtres</span>
+      <span class="filters-count" id="filters-count"></span>
+    </button>
 
     <nav class="tabs" id="tabs">
       <button type="button" class="tab on" data-view="decouverte">Propositions</button>
