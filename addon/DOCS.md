@@ -35,7 +35,7 @@ régler depuis l'interface.
 | `tmdb_language`, `tmdb_region` | Langue des fiches et région pour les dates et les plateformes. |
 | `my_services` | Identifiants TMDB de vos abonnements. Se règle plus simplement dans **Réglages → Mes abonnements**, avec les logos. Vide = tous les services. |
 | `tracker_*` | Indexeur Torznab : activation, adresse, clé d'API. |
-| `deluge_*` | Serveur Deluge : activation, adresse, mot de passe, et les chemins des fichiers PEM si l'accès est protégé par certificat client. Se règle aussi dans **Réglages**. |
+| `deluge_*` | Serveur Deluge : activation, adresse, mot de passe. Se règle aussi dans **Réglages**, où le certificat client se dépose directement. |
 | `plex_*` | Serveur Plex : activation, adresse, jeton, vérification TLS, reprise des films déjà vus. |
 
 Les champs `tracker_api_key` et `plex_token` sont de type `password` : Home
@@ -104,12 +104,20 @@ Trouveur récupère le `.torrent` auprès du tracker avec sa propre clé, puis l
 transmet à Deluge en base64 (`core.add_torrent_file`). **Deluge n'a donc besoin
 ni de la clé du tracker, ni d'un accès au tracker.**
 
-Si l'accès à Deluge est protégé par un certificat client, indiquer son chemin
-tel que l'add-on le voit — donc dans `/share`, monté dans le conteneur.
+### Certificat client
+
+Si l'accès à Deluge est protégé par un certificat client, **le déposer depuis
+Réglages** : le bouton de sélection de fichier l'envoie directement à l'add-on.
+Rien à copier dans `/share`, aucun chemin à saisir.
 
 Les formats **PKCS#12 (`.p12`, `.pfx`) et PEM** sont acceptés. Un `.p12`
-protégé par phrase de passe n'a pas à être converti : renseigner le fichier et
+protégé par phrase de passe n'a pas à être converti : le déposer et renseigner
 sa phrase de passe suffit, le champ « clé privée » reste vide.
+
+Le fichier est rangé dans `/data/certs`, sous un nom imposé par son rôle, avec
+des droits restreints — il **survit donc aux mises à jour** de l'add-on, comme
+la configuration. Son contenu n'est jamais renvoyé au navigateur : l'écran de
+réglages n'en affiche que le nom, avec un bouton **Retirer**.
 
 La clé privée n'est **jamais écrite en clair** : la conversion interne la laisse
 chiffrée, et les fichiers temporaires sont supprimés dès que le contexte TLS

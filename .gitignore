@@ -4,6 +4,9 @@ seen.json
 watchlist.json
 ignored.json
 
+# Certificats deposes depuis l'interface : cle privee du client Deluge.
+certs/
+
 # Toutes les variantes produites par les protections du stockage : copies de
 # secours, mises en quarantaine, écritures atomiques, sauvegardes datées.
 # Elles contiennent exactement les mêmes données que les fichiers ci-dessus.

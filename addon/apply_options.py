@@ -24,6 +24,10 @@ OPTIONS_PATH = "/data/options.json"
 SEED_DIR = "/share/trouveur"
 FICHIERS_REPRIS = ("seen.json", "watchlist.json", "ignored.json")
 CONFIG_PATH = os.environ.get("TROUVEUR_CONFIG_PATH", "/data/config.json")
+# Certificats deposes depuis Reglages : ils l'emportent sur les options, sinon
+# un chemin saisi autrefois dans l'interface de l'add-on reviendrait ecraser le
+# fichier depose a chaque redemarrage.
+CERTS_DIR = os.environ.get("TROUVEUR_CERTS_DIR", "/data/certs")
 
 
 def _load(path: str, defaut):
@@ -40,6 +44,23 @@ def _set(config: dict, chemin: str, valeur) -> None:
         return
     bloc, _, cle = chemin.partition(".")
     config.setdefault(bloc, {})[cle] = valeur
+
+
+# Doit rester aligne sur trouveur/certificates.py : ce script tourne avant
+# l'application et n'importe rien d'elle.
+EXTENSIONS = {
+    "client": (".p12", ".pfx", ".pem", ".crt", ".cer"),
+    "client_key": (".key", ".pem"),
+    "ca": (".pem", ".crt", ".cer"),
+}
+
+
+def _certificat_depose(role: str) -> str:
+    for extension in EXTENSIONS[role]:
+        chemin = os.path.join(CERTS_DIR, role + extension)
+        if os.path.isfile(chemin):
+            return chemin
+    return ""
 
 
 def reprendre_listes() -> None:
@@ -117,10 +138,15 @@ def main() -> int:
     bloc.setdefault("enabled", False)
     _set(config, "deluge.base_url", options.get("deluge_base_url"))
     _set(config, "deluge.password", options.get("deluge_password"))
-    _set(config, "deluge.client_cert", options.get("deluge_client_cert"))
-    _set(config, "deluge.client_key", options.get("deluge_client_key"))
+    for role, cle, option in (("client", "client_cert", "deluge_client_cert"),
+                              ("client_key", "client_key", "deluge_client_key"),
+                              ("ca", "ca_cert", "deluge_ca_cert")):
+        depose = _certificat_depose(role)
+        if depose:
+            bloc[cle] = depose
+        else:
+            _set(config, "deluge." + cle, options.get(option))
     _set(config, "deluge.client_key_password", options.get("deluge_client_key_password"))
-    _set(config, "deluge.ca_cert", options.get("deluge_ca_cert"))
 
     tmp = CONFIG_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:

@@ -588,6 +588,9 @@ function bindEvents() {
   $('plex-connect').addEventListener('click', plexConnect);
   $('plex-sync-now').addEventListener('click', plexSyncNow);
   $('deluge-test').addEventListener('click', delugeTest);
+  ROLES_CERT.forEach((role) => {
+    $(`cert-${role}-file`).addEventListener('change', (e) => deposerCertificat(role, e.target));
+  });
   $('set-import').addEventListener('change', importerFichiers);
   $('settings-backdrop').addEventListener('click', (event) => {
     if (event.target === $('settings-backdrop')) closeSettings();
@@ -1596,11 +1599,9 @@ async function loadSettings() {
   $('set-deluge-url').value = s.deluge.base_url;
   $('set-deluge-password').placeholder = s.deluge.has_password ? '•••••••• (enregistré)' : '';
   $('set-deluge-password').value = '';
-  $('set-deluge-cert').value = s.deluge.client_cert;
-  $('set-deluge-key').value = s.deluge.client_key;
   $('set-deluge-keypass').placeholder = s.deluge.has_key_password ? '•••••••• (enregistrée)' : '';
   $('set-deluge-keypass').value = '';
-  $('set-deluge-ca').value = s.deluge.ca_cert;
+  ROLES_CERT.forEach((role) => afficherCertificat(role, s.deluge));
   $('set-deluge-dir').value = s.deluge.download_location;
   $('set-deluge-label').value = s.deluge.label;
   $('set-deluge-paused').checked = s.deluge.add_paused;
@@ -1645,10 +1646,9 @@ async function saveSettings(event) {
           enabled: $('set-deluge-enabled').checked,
           base_url: $('set-deluge-url').value.trim(),
           password: $('set-deluge-password').value,
-          client_cert: $('set-deluge-cert').value.trim(),
-          client_key: $('set-deluge-key').value.trim(),
+          // Les certificats ne passent pas par ce formulaire : ils sont
+          // déposés par leur propre requête, qui en fixe le chemin.
           client_key_password: $('set-deluge-keypass').value,
-          ca_cert: $('set-deluge-ca').value.trim(),
           download_location: $('set-deluge-dir').value.trim(),
           label: $('set-deluge-label').value.trim(),
           add_paused: $('set-deluge-paused').checked,
@@ -2063,6 +2063,80 @@ function renderFiltersCount() {
   if ($('keyword').value.trim()) n += 1;
   if ($('hide-seen').checked) n += 1;
   $('filters-count').textContent = n || '';
+}
+
+/* --------------------------- Certificats client -------------------------- */
+
+const ROLES_CERT = ['client', 'client_key', 'ca'];
+
+/** Rappelle le fichier en place, avec de quoi le retirer. Le contenu n'est
+ *  jamais renvoyé par le serveur : on n'en connaît que le nom et la taille. */
+function afficherCertificat(role, deluge) {
+  const box = $(`cert-${role}-current`);
+  box.textContent = '';
+  const fichier = (deluge.files || {})[role];
+  if (!fichier) {
+    // Un chemin saisi autrefois, ou renseigné dans config.json à la main :
+    // il reste valable, on ne le fait pas disparaître en silence.
+    const chemin = { client: deluge.client_cert, client_key: deluge.client_key,
+                     ca: deluge.ca_cert }[role];
+    if (chemin) box.appendChild(el('span', 'cert-hint', chemin));
+    return;
+  }
+  const nom = el('span', 'cert-name');
+  nom.textContent = `${fichier.label || fichier.name} · ${Math.max(1, Math.round(fichier.size / 1024))} Ko`;
+  box.appendChild(nom);
+  const retirer = el('button', 'cert-remove', 'Retirer');
+  retirer.type = 'button';
+  retirer.addEventListener('click', () => retirerCertificat(role, retirer));
+  box.appendChild(retirer);
+}
+
+/** Lit le fichier choisi et l'envoie encodé. */
+function lireBase64(fichier) {
+  return new Promise((resolve, reject) => {
+    const lecteur = new FileReader();
+    lecteur.onerror = () => reject(new Error('Lecture du fichier impossible.'));
+    // readAsDataURL donne « data:...;base64,XXXX » : on ne garde que la charge.
+    lecteur.onload = () => resolve(String(lecteur.result).split(',')[1] || '');
+    lecteur.readAsDataURL(fichier);
+  });
+}
+
+async function deposerCertificat(role, input) {
+  const fichier = input.files && input.files[0];
+  if (!fichier) return;
+  const box = $(`cert-${role}-current`);
+  box.textContent = '';
+  box.appendChild(el('span', 'cert-hint', 'Envoi…'));
+
+  try {
+    await api('/api/certificates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        role, filename: fichier.name, data: await lireBase64(fichier),
+      }),
+    });
+    settingsNotice(null);
+  } catch (error) {
+    settingsNotice(error.message, true);
+  }
+  // Le champ garde sinon le fichier : re-choisir le même ne déclencherait
+  // plus rien.
+  input.value = '';
+  await loadSettings();
+}
+
+async function retirerCertificat(role, bouton) {
+  bouton.disabled = true;
+  try {
+    await api(`/api/certificates?role=${encodeURIComponent(role)}`, { method: 'DELETE' });
+    settingsNotice(null);
+  } catch (error) {
+    settingsNotice(error.message, true);
+  }
+  await loadSettings();
 }
 
 /* -------------------------------- Deluge -------------------------------- */

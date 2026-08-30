@@ -23,8 +23,9 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from trouveur import cache, config as config_module, seen
+from trouveur import cache, certificates, config as config_module, seen
 from trouveur.http_client import HttpError
+from trouveur.certificates import CertificateError
 from trouveur.deluge import Deluge, DelugeError
 from trouveur.plex import Plex, PlexError
 from trouveur.plex_auth import PlexAuthError
@@ -92,6 +93,12 @@ class Handler(BaseHTTPRequestHandler):
                 reload_services()
                 self._send_json(resultat)
                 return
+            if chemin == "/api/certificates":
+                corps = self._read_json_body()
+                resultat = _deposer_certificat(corps)
+                reload_services()   # le contexte TLS de Deluge doit relire le fichier
+                self._send_json(resultat)
+                return
             if chemin == "/api/deluge/add":
                 corps = self._read_json_body()
                 self._send_json(_envoyer_vers_deluge(corps))
@@ -127,6 +134,9 @@ class Handler(BaseHTTPRequestHandler):
         except DelugeError as exc:
             self._send_json({"error": str(exc)}, status=502)
             return
+        except CertificateError as exc:
+            self._send_json({"error": str(exc)}, status=400)
+            return
         except ValueError as exc:
             self._send_json({"error": str(exc)}, status=400)
             return
@@ -150,6 +160,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:  # noqa: N802 - impose par BaseHTTPRequestHandler
         parsed = urllib.parse.urlsplit(self.path)
+        if parsed.path.rstrip("/") == "/api/certificates":
+            role = _one(urllib.parse.parse_qs(parsed.query), "role", "")
+            try:
+                retire = certificates.remove(role)
+                _oublier_certificat(role)
+                reload_services()
+                self._send_json({"removed": retire})
+            except CertificateError as exc:
+                self._send_json({"error": str(exc)}, status=400)
+            return
+
         base, _, movie_id = parsed.path.rpartition("/")
         store = _store_for(base)
         if store is None:
@@ -172,7 +193,8 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("En-tete Content-Length invalide") from None
         if length <= 0:
             raise ValueError("Corps de requete vide")
-        if length > 64 * 1024:
+        # Assez large pour un certificat encode en base64.
+        if length > 512 * 1024:
             raise ValueError("Corps de requete trop volumineux")
         try:
             body = json.loads(self.rfile.read(length).decode("utf-8"))
@@ -444,6 +466,9 @@ class Handler(BaseHTTPRequestHandler):
         except DelugeError as exc:
             self._send_json({"error": str(exc)}, status=502)
             return
+        except CertificateError as exc:
+            self._send_json({"error": str(exc)}, status=400)
+            return
 
         self.send_response(200)
         self.send_header("Content-Type", "application/x-bittorrent")
@@ -517,6 +542,35 @@ def _list_payload(store: seen.MovieList) -> dict[str, Any]:
                 "incomplete": True,
             })
     return {"movies": movies, "count": len(movies)}
+
+
+# Chaque role de certificat alimente une cle de configuration.
+_CERTIFICATS = {
+    "client": "client_cert",
+    "client_key": "client_key",
+    "ca": "ca_cert",
+}
+
+
+def _deposer_certificat(corps: dict[str, Any]) -> dict[str, Any]:
+    """Enregistre un certificat envoye depuis l'interface et note son chemin."""
+    role = str(corps.get("role") or "")
+    if role not in _CERTIFICATS:
+        raise CertificateError("Type de certificat inconnu.")
+
+    depose = certificates.store(role, str(corps.get("filename") or ""),
+                                str(corps.get("data") or ""))
+    brut = config_module.load_raw() or {}
+    brut.setdefault("deluge", {})[_CERTIFICATS[role]] = depose["path"]
+    config_module.save(brut)
+    return {"role": role, "name": depose["name"], "size": depose["size"]}
+
+
+def _oublier_certificat(role: str) -> None:
+    brut = config_module.load_raw() or {}
+    if brut.get("deluge", {}).get(_CERTIFICATS[role]):
+        brut["deluge"][_CERTIFICATS[role]] = ""
+        config_module.save(brut)
 
 
 def _envoyer_vers_deluge(corps: dict[str, Any]) -> dict[str, Any]:

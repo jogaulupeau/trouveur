@@ -17,6 +17,7 @@ import time
 from typing import Any
 
 from . import config as config_module
+from . import certificates
 from . import plex_auth
 
 # Les demandes de connexion Plex en cours, le temps que l'utilisateur approuve.
@@ -63,6 +64,11 @@ def current() -> dict[str, Any]:
             "has_password": bool(deluge.get("password")),
             "client_cert": deluge.get("client_cert", ""),
             "client_key": deluge.get("client_key", ""),
+            # Nom seulement : le contenu ne repart jamais vers le navigateur.
+            "files": {
+                role: certificates.current(role)
+                for role in ("client", "client_key", "ca")
+            },
             "has_key_password": bool(deluge.get("client_key_password")),
             "ca_cert": deluge.get("ca_cert", ""),
             "verify_tls": bool(deluge.get("verify_tls", True)),

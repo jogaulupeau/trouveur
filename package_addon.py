@@ -29,6 +29,9 @@ A_COPIER = [
 # Ce qui ne doit jamais entrer dans l'image.
 INTERDITS = (
     "config.json", "seen.json", "watchlist.json", "ignored.json",
+    # Certificats deposes depuis l'interface : une cle privee n'a rien a faire
+    # dans une image de conteneur.
+    "certs", ".p12", ".pfx", ".key",
     ".cache", "__pycache__", ".backup", ".corrompu", ".tmp", ".avant-",
 )
 

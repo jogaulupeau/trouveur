@@ -49,6 +49,15 @@ def watchlist_path() -> str:
 def ignored_path() -> str:
     return data_file("ignored.json", "TROUVEUR_IGNORED_PATH")
 
+
+def certs_dir() -> str:
+    """Certificats deposes depuis l'interface.
+
+    Dans le volume de donnees : ils doivent survivre aux mises a jour, au meme
+    titre que la configuration.
+    """
+    return data_file("certs", "TROUVEUR_CERTS_DIR")
+
 # L'exemple accompagne le code, pas les donnees.
 EXAMPLE_PATH = os.path.join(ROOT, "config.example.json")
 
