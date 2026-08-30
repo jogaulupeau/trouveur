@@ -15,9 +15,12 @@ import base64
 import http.cookiejar
 import json
 import os
+import socket
 import ssl
+import subprocess
 import threading
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -121,6 +124,70 @@ class Deluge:
                 "Certificat extrait du PKCS#12 mais refusé : %s" % exc
             ) from exc
 
+    def _hote(self) -> tuple[str, int]:
+        decoupe = urllib.parse.urlsplit(self.base_url)
+        return decoupe.hostname or "", decoupe.port or 443
+
+    def _certificat_du_serveur(self) -> dict[str, str]:
+        """Qui a signé le certificat que presente Deluge ?
+
+        « unable to get local issuer certificate » ne dit pas quelle autorite
+        manque. On rouvre donc une connexion sans verification — uniquement
+        pour lire le certificat et le decrire, jamais pour echanger quoi que
+        ce soit.
+        """
+        hote, port = self._hote()
+        if not hote:
+            return {}
+        brut = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        brut.check_hostname = False
+        brut.verify_mode = ssl.CERT_NONE
+        try:
+            with socket.create_connection((hote, port), timeout=self.timeout) as tcp:
+                with brut.wrap_socket(tcp, server_hostname=hote) as tls:
+                    der = tls.getpeercert(binary_form=True)
+        except (OSError, ssl.SSLError):
+            return {}
+        if not der:
+            return {}
+
+        try:
+            resultat = subprocess.run(
+                ["openssl", "x509", "-noout", "-subject", "-issuer", "-dates"],
+                input=ssl.DER_cert_to_PEM_cert(der),
+                capture_output=True, text=True, timeout=15,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return {}
+        if resultat.returncode != 0:
+            return {}
+
+        champs: dict[str, str] = {}
+        for ligne in resultat.stdout.splitlines():
+            cle, _, valeur = ligne.partition("=")
+            champs[cle.strip().lower()] = valeur.strip()
+        return champs
+
+    def _explique_verification(self, raison: ssl.SSLError) -> str:
+        """Traduit un echec de verification en geste a faire."""
+        certificat = self._certificat_du_serveur()
+        emetteur = certificat.get("issuer") or ""
+        sujet = certificat.get("subject") or ""
+
+        qui = ""
+        if emetteur:
+            qui = " Le serveur présente un certificat émis par « %s »" % emetteur
+            qui += (" pour « %s »." % sujet) if sujet else "."
+            if emetteur == sujet:
+                qui += " Émetteur et sujet identiques : c'est un certificat auto-signé."
+
+        return (
+            "Le certificat du serveur Deluge n'est pas reconnu (%s).%s "
+            "Dépose l'autorité qui l'a signé dans « Autorité de certification », "
+            "ou décoche « Vérifier le certificat du serveur » si tu l'acceptes "
+            "tel quel. Ton certificat client, lui, a bien été lu." % (raison, qui)
+        )
+
     def _build_opener(self) -> urllib.request.OpenerDirector:
         # Un cookie jar par session : Deluge identifie la session par cookie.
         jar = http.cookiejar.CookieJar()
@@ -157,9 +224,14 @@ class Deluge:
         except urllib.error.URLError as exc:
             raison = getattr(exc, "reason", exc)
             if isinstance(raison, ssl.SSLError):
+                # Deux echecs tres differents portent le meme nom. Celui-ci
+                # concerne le certificat du serveur, pas le notre : le dire
+                # evite de chercher du mauvais cote.
+                texte_tls = str(raison).lower()
+                if "certificate_verify_failed" in texte_tls or "verify failed" in texte_tls:
+                    raise DelugeError(self._explique_verification(raison)) from exc
                 raise DelugeError(
-                    "Échec TLS : %s. Certificat client absent ou refusé, ou "
-                    "autorité inconnue (ca_cert)." % raison
+                    "Échec TLS : %s. Certificat client absent ou refusé." % raison
                 ) from exc
             texte = str(raison).lower()
             coupee = (

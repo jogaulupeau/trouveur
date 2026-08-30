@@ -123,6 +123,17 @@ La clé privée n'est **jamais écrite en clair** : la conversion interne la lai
 chiffrée, et les fichiers temporaires sont supprimés dès que le contexte TLS
 les a lus.
 
+### Si le serveur présente un certificat privé
+
+Un échec « unable to get local issuer certificate » ne vient **pas** du
+certificat client : il dit que Trouveur ne reconnaît pas l'autorité qui a signé
+le certificat du **serveur** Deluge. Le diagnostic nomme alors cette autorité —
+déposer son certificat dans « Autorité de certification » suffit.
+
+À défaut, l'interrupteur **Vérifier le certificat du serveur** permet de passer
+outre. La liaison reste chiffrée, mais Trouveur ne vérifie plus à qui il parle :
+à ne décocher que sur un réseau de confiance.
+
 Le bouton **Tester la connexion** déroule le diagnostic étape par étape :
 lecture du certificat, négociation TLS, authentification, liaison au démon.
 

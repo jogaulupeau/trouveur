@@ -1605,6 +1605,7 @@ async function loadSettings() {
   $('set-deluge-dir').value = s.deluge.download_location;
   $('set-deluge-label').value = s.deluge.label;
   $('set-deluge-paused').checked = s.deluge.add_paused;
+  $('set-deluge-verify').checked = s.deluge.verify_tls;
   $('deluge-state').textContent = '';
 
   await buildServiceChoices(s.streaming.my_services);
@@ -1652,6 +1653,7 @@ async function saveSettings(event) {
           download_location: $('set-deluge-dir').value.trim(),
           label: $('set-deluge-label').value.trim(),
           add_paused: $('set-deluge-paused').checked,
+          verify_tls: $('set-deluge-verify').checked,
         },
       }),
     });

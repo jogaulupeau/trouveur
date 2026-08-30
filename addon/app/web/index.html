@@ -322,6 +322,16 @@
             <div class="cert-current" id="cert-ca-current"></div>
             <input type="file" id="cert-ca-file" accept=".pem,.crt,.cer">
           </div>
+          <label class="switch settings-switch">
+            <input type="checkbox" id="set-deluge-verify" checked>
+            <span class="switch-track"><span class="switch-knob"></span></span>
+            <span class="switch-label">Vérifier le certificat du serveur</span>
+          </label>
+          <p class="settings-help settings-sub">
+            À décocher seulement si le serveur présente un certificat auto-signé
+            que tu n'as pas moyen de fournir ci-dessus. La liaison reste
+            chiffrée, mais Trouveur ne vérifie plus à qui il parle.
+          </p>
 
           <div class="settings-row">
             <label class="settings-field">
