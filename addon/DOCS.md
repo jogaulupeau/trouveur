@@ -148,6 +148,21 @@ Le bouton **Rafraîchir la bibliothèque Plex** le relit sur-le-champ et annonce
 ce qui a bougé — « 1 248 films (+3, −1) ». Les badges de la grille en cours sont
 redessinés dans la foulée.
 
+## Qui peut ouvrir Trouveur
+
+Trouveur apparaît dans la barre latérale de **tous** les utilisateurs Home
+Assistant, pas seulement des administrateurs (`panel_admin: false`).
+
+L'ingress continue d'exiger une session Home Assistant valide : l'add-on n'est
+pas exposé au réseau, seulement aux personnes déjà connectées.
+
+Il n'y a pas de séparation par utilisateur, et c'est voulu : les listes
+(déjà vus, à voir, ignorés) et l'écran **Réglages** sont communs. Chacun voit et
+modifie les mêmes listes, et peut lancer un téléchargement vers Deluge.
+
+Pour revenir à un accès réservé aux administrateurs, retirer la ligne
+`panel_admin: false` du `config.yaml` de l'add-on.
+
 ## Journal
 
 `log_level` règle la verbosité. La synchronisation Plex et la reprise des
