@@ -19,6 +19,7 @@ data/
 __pycache__/
 *.pyc
 
-# Assemblage de l'add-on, produit par package_addon.py
-addon/app/
+# addon/app/ est volontairement versionne : Home Assistant clone le depot puis
+# construit l'image, et le Dockerfile y prend le code. Il est regenere par
+# « python package_addon.py », qui refuse d'y copier une cle ou une liste.
 .tv-hass-data

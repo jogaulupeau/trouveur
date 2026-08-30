@@ -1,0 +1,15 @@
+# Le depot est clone par Home Assistant sur Linux : un script shell ou un
+# Dockerfile en CRLF y donne « bad interpreter ». On impose donc LF dans le
+# depot, quelle que soit la machine qui commite.
+* text=auto eol=lf
+
+*.sh      text eol=lf
+*.py      text eol=lf
+*.yaml    text eol=lf
+*.yml     text eol=lf
+*.json    text eol=lf
+*.js      text eol=lf
+*.css     text eol=lf
+*.html    text eol=lf
+*.md      text eol=lf
+Dockerfile text eol=lf

@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trouveur — propositions de films</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#127916;</text></svg>">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-brand">
+    <span class="masthead-mark" aria-hidden="true"></span>
+    <div>
+      <h1>Trouveur</h1>
+      <p class="masthead-tagline">Des films à voir, choisis selon vos critères</p>
+    </div>
+  </div>
+  <form class="search" id="search-form" role="search">
+    <input type="search" id="search-input" placeholder="Chercher un film par son titre…"
+           aria-label="Chercher un film par son titre" autocomplete="off">
+    <button type="submit" class="search-go" aria-label="Lancer la recherche">Chercher</button>
+  </form>
+
+  <button type="button" class="masthead-settings" id="open-settings" title="Configuration">
+    <span class="gear" aria-hidden="true"></span><span>Réglages</span>
+  </button>
+
+  <div class="masthead-status" id="tracker-status" hidden>
+    <span class="status-dot"></span><span id="tracker-status-label"></span>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ------------------------------- critères ------------------------------- -->
+  <aside class="panel" id="panel">
+    <form id="criteria" autocomplete="off">
+
+      <section class="field">
+        <div class="field-head">
+          <label>Genres</label>
+          <span class="hint" id="genre-hint">1 clic&nbsp;: inclure · 2&nbsp;clics&nbsp;: exclure</span>
+        </div>
+        <div class="chips" id="genres" role="group" aria-label="Genres"></div>
+        <div class="segmented" id="genre-mode" hidden>
+          <button type="button" class="on" data-mode="ou">Au moins un</button>
+          <button type="button" data-mode="et">Tous à la fois</button>
+        </div>
+      </section>
+
+      <section class="field">
+        <div class="field-head"><label>Époque</label></div>
+        <div class="chips chips-compact" id="decades" role="group" aria-label="Décennies"></div>
+        <div class="range-pair">
+          <label>De <input type="number" id="year-min" min="1900" max="2030" step="1" placeholder="1900"></label>
+          <label>à <input type="number" id="year-max" min="1900" max="2030" step="1" placeholder="2026"></label>
+        </div>
+      </section>
+
+      <section class="field">
+        <div class="field-head">
+          <label for="rating-min">Note minimum</label>
+          <output class="value" id="rating-min-out">6,5</output>
+        </div>
+        <input type="range" id="rating-min" min="0" max="9" step="0.5" value="6.5">
+      </section>
+
+      <section class="field">
+        <div class="field-head">
+          <label for="runtime-max">Durée maximum</label>
+          <output class="value" id="runtime-max-out">peu importe</output>
+        </div>
+        <input type="range" id="runtime-max" min="60" max="245" step="5" value="245">
+      </section>
+
+      <section class="field grid-2">
+        <div>
+          <div class="field-head"><label for="votes-min">Popularité</label></div>
+          <select id="votes-min">
+            <option value="50">Même confidentiel</option>
+            <option value="300" selected>Un minimum connu</option>
+            <option value="1500">Bien vu</option>
+            <option value="6000">Très vu</option>
+          </select>
+        </div>
+        <div>
+          <div class="field-head"><label for="original-language">Langue d'origine</label></div>
+          <select id="original-language">
+            <option value="">Peu importe</option>
+            <option value="fr">Français</option>
+            <option value="en">Anglais</option>
+            <option value="ja">Japonais</option>
+            <option value="ko">Coréen</option>
+            <option value="it">Italien</option>
+            <option value="es">Espagnol</option>
+            <option value="de">Allemand</option>
+            <option value="zh">Chinois</option>
+            <option value="da">Danois</option>
+            <option value="sv">Suédois</option>
+            <option value="ru">Russe</option>
+            <option value="hi">Hindi</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="field">
+        <div class="field-head">
+          <label for="keyword">Thème</label>
+          <span class="hint">facultatif</span>
+        </div>
+        <input type="text" id="keyword" placeholder="braquage, voyage dans le temps, mafia…">
+      </section>
+
+      <section class="field">
+        <div class="field-head">
+          <label>Disponible sur</label>
+          <span class="hint">facultatif</span>
+        </div>
+        <div class="providers" id="providers" role="group" aria-label="Plateformes"></div>
+      </section>
+
+      <section class="field">
+        <div class="field-head"><label for="sort">Trier par</label></div>
+        <select id="sort">
+          <option value="note" selected>Meilleures notes</option>
+          <option value="hasard">Au hasard</option>
+          <option value="populaire">Popularité</option>
+          <option value="recent">Plus récents</option>
+          <option value="ancien">Plus anciens</option>
+          <option value="revenus">Plus gros succès</option>
+        </select>
+      </section>
+
+      <section class="field">
+        <label class="switch">
+          <input type="checkbox" id="hide-seen">
+          <span class="switch-track"><span class="switch-knob"></span></span>
+          <span class="switch-label">Masquer les films déjà vus</span>
+        </label>
+        <p class="seen-count" id="seen-count"></p>
+      </section>
+
+      <div class="panel-actions">
+        <button type="submit" class="btn btn-primary" id="submit">Proposer des films</button>
+        <button type="button" class="btn btn-ghost" id="reset">Réinitialiser</button>
+      </div>
+    </form>
+  </aside>
+
+  <!-- ------------------------------- résultats ------------------------------ -->
+  <main class="results">
+    <div class="results-head">
+      <div class="results-title-row">
+        <h2 id="results-title">Vos propositions</h2>
+        <button type="button" class="back-link" id="back-to-criteria" hidden>Revenir aux critères</button>
+      </div>
+      <p class="results-meta" id="results-meta"></p>
+    </div>
+
+    <nav class="tabs" id="tabs">
+      <button type="button" class="tab on" data-view="decouverte">Propositions</button>
+      <button type="button" class="tab" data-view="foryou">Pour toi</button>
+      <button type="button" class="tab" data-view="watchlist">À voir <span class="tab-count" id="count-watchlist"></span></button>
+      <button type="button" class="tab" data-view="seen">Déjà vus <span class="tab-count" id="count-seen"></span></button>
+      <button type="button" class="tab" data-view="ignored">Ignorés <span class="tab-count" id="count-ignored"></span></button>
+    </nav>
+    <div id="notice" class="notice" hidden></div>
+    <div class="grid" id="grid"></div>
+
+    <div class="more" id="more" hidden>
+      <span class="more-sentinel" id="more-sentinel" aria-hidden="true"></span>
+      <button type="button" class="btn btn-ghost" id="more-button">Afficher plus</button>
+      <p class="more-state" id="more-state"></p>
+    </div>
+
+    <div class="empty" id="empty">
+      <span class="empty-mark" aria-hidden="true"></span>
+      <p>Choisissez vos critères à gauche, puis lancez la recherche.</p>
+    </div>
+  </main>
+</div>
+
+<!-- --------------------------------- fiche --------------------------------- -->
+<!-- ------------------------------ réglages ------------------------------- -->
+<div class="sheet-backdrop" id="settings-backdrop" hidden>
+  <article class="sheet sheet-narrow" role="dialog" aria-modal="true" aria-label="Configuration">
+    <button class="sheet-close" id="settings-close" aria-label="Fermer">&times;</button>
+    <div class="settings">
+      <h3 class="settings-title">Réglages</h3>
+      <p class="settings-intro" id="settings-intro"></p>
+
+      <form id="settings-form">
+        <section class="settings-block">
+          <h4>TMDB <span class="required">obligatoire</span></h4>
+          <p class="settings-help">
+            Source des fiches, affiches et bandes-annonces.
+            <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer">Créer une clé</a>
+            — gratuit. Clé v3 ou jeton v4.
+          </p>
+          <label class="settings-field">
+            <span>Clé d'API</span>
+            <input type="password" id="set-tmdb-key" autocomplete="off" placeholder="">
+          </label>
+          <div class="settings-row">
+            <label class="settings-field">
+              <span>Langue</span>
+              <input type="text" id="set-tmdb-language" placeholder="fr-FR">
+            </label>
+            <label class="settings-field">
+              <span>Région</span>
+              <input type="text" id="set-tmdb-region" placeholder="FR">
+            </label>
+          </div>
+        </section>
+
+        <section class="settings-block">
+          <h4>Serveur Plex</h4>
+          <p class="settings-help">
+            La connexion se fait chez Plex : ton mot de passe ne passe jamais par
+            Trouveur. Tes serveurs et leurs adresses sont ensuite trouvés tout seuls.
+          </p>
+          <div class="plex-connect">
+            <button type="button" class="btn btn-primary" id="plex-connect">Se connecter avec Plex</button>
+            <p class="settings-state" id="plex-state"></p>
+            <div id="plex-servers"></div>
+          </div>
+          <label class="switch settings-switch">
+            <input type="checkbox" id="set-plex-sync">
+            <span class="switch-track"><span class="switch-knob"></span></span>
+            <span class="switch-label">Reprendre les films vus sur Plex</span>
+          </label>
+        </section>
+
+        <section class="settings-block">
+          <h4>Tracker</h4>
+          <label class="switch settings-switch">
+            <input type="checkbox" id="set-tracker-enabled">
+            <span class="switch-track"><span class="switch-knob"></span></span>
+            <span class="switch-label">Chercher les torrents disponibles</span>
+          </label>
+          <label class="settings-field">
+            <span>Adresse</span>
+            <input type="text" id="set-tracker-url" placeholder="https://tr4ker.net">
+          </label>
+          <label class="settings-field">
+            <span>Clé d'API</span>
+            <input type="password" id="set-tracker-key" autocomplete="off">
+          </label>
+        </section>
+
+        <div id="settings-notice" class="notice" hidden></div>
+
+        <div class="settings-actions">
+          <button type="submit" class="btn btn-primary" id="settings-save">Enregistrer</button>
+        </div>
+        <p class="settings-foot">
+          Un champ laissé vide n'efface rien : il conserve la valeur en place.
+        </p>
+      </form>
+    </div>
+  </article>
+</div>
+
+<div class="sheet-backdrop" id="sheet-backdrop" hidden>
+  <article class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Fiche du film">
+    <button class="sheet-close" id="sheet-close" aria-label="Fermer">&times;</button>
+    <div id="sheet-body"></div>
+  </article>
+</div>
+
+<template id="tpl-card">
+  <article class="card" tabindex="0">
+    <div class="card-poster">
+      <img alt="" loading="lazy">
+      <span class="card-rating"></span>
+      <span class="card-torrent is-pending" title="Recherche de torrents…"></span>
+      <button type="button" class="card-seen" aria-pressed="false">
+        <span class="card-seen-icon" aria-hidden="true"></span>
+        <span class="card-seen-text">Vu</span>
+      </button>
+      <span class="card-avail"></span>
+      <button type="button" class="card-want" aria-pressed="false" title="Ajouter à ma liste à voir">
+        <span class="card-want-icon" aria-hidden="true"></span>
+      </button>
+      <button type="button" class="card-hide" title="Ne plus me proposer ce film">
+        <span class="card-hide-icon" aria-hidden="true"></span>
+      </button>
+    </div>
+    <div class="card-body">
+      <h3 class="card-title"></h3>
+      <p class="card-sub"></p>
+    </div>
+  </article>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>

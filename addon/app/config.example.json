@@ -1,0 +1,56 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8777,
+    "open_browser": true
+  },
+  "tmdb": {
+    "_comment": "Cle v3 (32 caracteres) ou jeton v4 (commence par eyJ) : https://www.themoviedb.org/settings/api",
+    "api_key": "COLLE_TA_CLE_TMDB_ICI",
+    "language": "fr-FR",
+    "region": "FR",
+    "include_adult": false
+  },
+  "tracker": {
+    "_comment": "Indexeur Torznab. tr4ker expose ce standard sur /api : la recherche de films accepte un tmdbid, donc le rapprochement est exact.",
+    "enabled": false,
+    "name": "tr4ker.net",
+    "base_url": "https://tr4ker.net",
+    "api_path": "/api",
+    "api_key": "COLLE_TA_CLE_TR4KER_ICI",
+    "_auth": "\"header\" : la cle part dans l'en-tete header_name. \"query\" : elle part dans ?apikey=.",
+    "auth": "header",
+    "header_name": "X-Api-Key",
+    "_movie_category": "Categorie Torznab des films (2000 dans le catalogue tr4ker).",
+    "movie_category": "2000",
+    "limit": 100,
+    "timeout": 15,
+    "max_results": 40
+  },
+  "streaming": {
+    "_comment": "Identifiants TMDB des services auxquels tu es abonne. Seuls ceux-ci sont proposes dans le filtre et affiches en badge sur les affiches. Vide = tous les services de la region. Ton serveur Plex est independant de cette liste : il est toujours propose.",
+    "_ids": "Netflix 8 · Amazon Prime Video 119 · Disney Plus 337 · Apple TV+ 350 · Canal+ 381 · Paramount Plus 531 · Max 1899 · Crunchyroll 283",
+    "my_services": []
+  },
+  "plex": {
+    "_comment": "Ne remplis rien a la main : lance « python server.py --plex-login ». Tu approuves la connexion sur la page de Plex, et ce bloc est rempli automatiquement (adresse du serveur et jeton).",
+    "enabled": false,
+    "base_url": "",
+    "token": "",
+    "_sections": "Cles des bibliotheques de films a interroger. Vide = toutes celles de type film.",
+    "sections": [],
+    "_verify_tls": "Passe a false si ton serveur presente un certificat auto-signe (frequent sur une IP de LAN en https).",
+    "verify_tls": true,
+    "timeout": 20,
+    "_refresh_seconds": "La bibliotheque est chargee une fois puis gardee en memoire pendant ce delai.",
+    "refresh_seconds": 600,
+    "_sync_watched": "Les films lus sur Plex alimentent la liste des deja vus. Sens unique : Trouveur n'ecrit jamais dans ta bibliotheque Plex.",
+    "sync_watched": true,
+    "client_id": ""
+  },
+  "cache": {
+    "enabled": true,
+    "ttl_seconds": 86400,
+    "tracker_ttl_seconds": 900
+  }
+}
