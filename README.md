@@ -374,11 +374,14 @@ transmet en base64 via `core.add_torrent_file` de l'API JSON-RPC de Deluge.
 Conséquence utile : **Deluge n'a besoin ni de la clé du tracker, ni de pouvoir
 l'atteindre**.
 
-L'accès protégé par certificat client est pris en charge : `client_cert`,
-`client_key` et une phrase de passe facultative, plus `ca_cert` si l'autorité
-est privée. Le format attendu est le PEM ; un `.p12` doit être converti, ce que
-le message d'erreur explique avec la commande exacte plutôt que d'échouer sur
-une erreur SSL obscure.
+L'accès protégé par certificat client est pris en charge, aux formats **PEM et
+PKCS#12**. Un `.p12` protégé par phrase de passe se renseigne tel quel : Python
+ne sait pas lire ce format, `openssl` s'en charge en interne.
+
+La clé privée n'est jamais écrite en clair. La conversion la laisse chiffrée
+avec sa phrase de passe d'origine — c'est `load_cert_chain` qui la déchiffre en
+mémoire — et les fichiers temporaires, créés en 0600, sont supprimés dès le
+chargement. C'est le seul endroit où Trouveur dépend d'un binaire externe.
 
 Le bouton **Tester la connexion** des réglages déroule le diagnostic étape par
 étape — lecture du certificat, TLS, authentification, liaison au démon — parce

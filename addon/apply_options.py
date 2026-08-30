@@ -119,6 +119,7 @@ def main() -> int:
     _set(config, "deluge.password", options.get("deluge_password"))
     _set(config, "deluge.client_cert", options.get("deluge_client_cert"))
     _set(config, "deluge.client_key", options.get("deluge_client_key"))
+    _set(config, "deluge.client_key_password", options.get("deluge_client_key_password"))
     _set(config, "deluge.ca_cert", options.get("deluge_ca_cert"))
 
     tmp = CONFIG_PATH + ".tmp"

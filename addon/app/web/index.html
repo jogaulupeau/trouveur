@@ -299,19 +299,20 @@
 
           <p class="settings-help settings-sub">
             Accès protégé par certificat client : indiquer les chemins des
-            fichiers <strong>au format PEM</strong>, tels que le serveur Trouveur
-            les voit.
+            fichiers tels que le serveur Trouveur les voit. Un fichier
+            <strong>.p12 / .pfx</strong> est accepté tel quel — inutile de le
+            convertir. Sa clé n'est jamais écrite en clair sur le disque.
           </p>
           <label class="settings-field">
-            <span>Certificat client (.crt / .pem)</span>
-            <input type="text" id="set-deluge-cert" placeholder="/config/deluge/client.crt">
+            <span>Certificat client (.p12, .pfx, .crt ou .pem)</span>
+            <input type="text" id="set-deluge-cert" placeholder="/config/deluge/client.p12">
           </label>
           <label class="settings-field">
-            <span>Clé privée (.key)</span>
+            <span>Clé privée — inutile avec un .p12</span>
             <input type="text" id="set-deluge-key" placeholder="/config/deluge/client.key">
           </label>
           <label class="settings-field">
-            <span>Phrase de passe de la clé</span>
+            <span>Phrase de passe (du .p12 ou de la clé)</span>
             <input type="password" id="set-deluge-keypass" autocomplete="off">
           </label>
           <label class="settings-field">

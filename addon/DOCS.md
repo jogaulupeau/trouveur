@@ -104,15 +104,16 @@ Trouveur récupère le `.torrent` auprès du tracker avec sa propre clé, puis l
 transmet à Deluge en base64 (`core.add_torrent_file`). **Deluge n'a donc besoin
 ni de la clé du tracker, ni d'un accès au tracker.**
 
-Si l'accès à Deluge est protégé par un certificat client, indiquer les chemins
-des fichiers **au format PEM** tels que l'add-on les voit — donc dans `/config`
-ou `/share`, montés dans le conteneur. Un fichier PKCS#12 (`.p12`, `.pfx`) n'est
-pas lisible directement ; le convertir :
+Si l'accès à Deluge est protégé par un certificat client, indiquer son chemin
+tel que l'add-on le voit — donc dans `/share`, monté dans le conteneur.
 
-```bash
-openssl pkcs12 -in cert.p12 -clcerts -nokeys -out client.crt
-openssl pkcs12 -in cert.p12 -nocerts -nodes -out client.key
-```
+Les formats **PKCS#12 (`.p12`, `.pfx`) et PEM** sont acceptés. Un `.p12`
+protégé par phrase de passe n'a pas à être converti : renseigner le fichier et
+sa phrase de passe suffit, le champ « clé privée » reste vide.
+
+La clé privée n'est **jamais écrite en clair** : la conversion interne la laisse
+chiffrée, et les fichiers temporaires sont supprimés dès que le contexte TLS
+les a lus.
 
 Le bouton **Tester la connexion** déroule le diagnostic étape par étape :
 lecture du certificat, négociation TLS, authentification, liaison au démon.

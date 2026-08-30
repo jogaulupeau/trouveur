@@ -21,6 +21,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from . import pkcs12
 from .http_client import register_secret
 
 TIMEOUT = 20
@@ -74,34 +75,51 @@ class Deluge:
             context.verify_mode = ssl.CERT_NONE
 
         if self.client_cert:
-            # Le format se verifie avant l'existence : dire « fichier
-            # introuvable » a quelqu'un qui a un .p12 l'enverrait chercher au
-            # mauvais endroit.
-            if self.client_cert.lower().endswith((".p12", ".pfx")):
-                raise DelugeError(
-                    "Le format PKCS#12 (.p12/.pfx) n'est pas lisible directement. "
-                    "Convertis-le en PEM :\n"
-                    "  openssl pkcs12 -in cert.p12 -clcerts -nokeys -out client.crt\n"
-                    "  openssl pkcs12 -in cert.p12 -nocerts -nodes -out client.key\n"
-                    "puis indique client.crt et client.key."
-                )
-            for chemin in (self.client_cert, self.client_key or self.client_cert):
-                if not os.path.isfile(chemin):
-                    raise DelugeError("Fichier de certificat introuvable : %s" % chemin)
-            try:
+            if pkcs12.is_pkcs12(self.client_cert):
+                self._charger_p12(context)
+            else:
+                self._charger_pem(context)
+        return context
+
+    def _charger_pem(self, context: ssl.SSLContext) -> None:
+        for chemin in (self.client_cert, self.client_key or self.client_cert):
+            if not os.path.isfile(chemin):
+                raise DelugeError("Fichier de certificat introuvable : %s" % chemin)
+        try:
+            context.load_cert_chain(
+                certfile=self.client_cert,
+                keyfile=self.client_key or None,
+                password=self.client_key_password or None,
+            )
+        except ssl.SSLError as exc:
+            raise DelugeError(
+                "Certificat client refusé : %s. Vérifie le format (PEM attendu) "
+                "et la phrase de passe de la clé." % exc
+            ) from exc
+        except OSError as exc:
+            raise DelugeError("Lecture du certificat impossible : %s" % exc) from exc
+
+    def _charger_p12(self, context: ssl.SSLContext) -> None:
+        """PKCS#12 : converti en PEM le temps du chargement seulement.
+
+        La cle privee n'est jamais ecrite en clair et les fichiers sont
+        supprimes des que le contexte TLS les a lus.
+        """
+        try:
+            with pkcs12.pem_temporaire(
+                self.client_cert, self.client_key_password
+            ) as (cert, cle):
                 context.load_cert_chain(
-                    certfile=self.client_cert,
-                    keyfile=self.client_key or None,
+                    certfile=cert,
+                    keyfile=cle,
                     password=self.client_key_password or None,
                 )
-            except ssl.SSLError as exc:
-                raise DelugeError(
-                    "Certificat client refuse : %s. Vérifie le format (PEM attendu) "
-                    "et la phrase de passe de la clé." % exc
-                ) from exc
-            except OSError as exc:
-                raise DelugeError("Lecture du certificat impossible : %s" % exc) from exc
-        return context
+        except pkcs12.Pkcs12Error as exc:
+            raise DelugeError(str(exc)) from exc
+        except ssl.SSLError as exc:
+            raise DelugeError(
+                "Certificat extrait du PKCS#12 mais refusé : %s" % exc
+            ) from exc
 
     def _build_opener(self) -> urllib.request.OpenerDirector:
         # Un cookie jar par session : Deluge identifie la session par cookie.

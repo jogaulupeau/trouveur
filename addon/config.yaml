@@ -1,5 +1,5 @@
 name: Trouveur
-version: "1.1.0"
+version: "1.1.1"
 slug: trouveur
 description: >-
   Propositions de films selon vos critères, avec disponibilité sur votre
@@ -45,6 +45,7 @@ options:
   deluge_password: ""
   deluge_client_cert: ""
   deluge_client_key: ""
+  deluge_client_key_password: ""
   deluge_ca_cert: ""
   log_level: info
 
@@ -67,5 +68,6 @@ schema:
   deluge_password: password
   deluge_client_cert: str
   deluge_client_key: str
+  deluge_client_key_password: password
   deluge_ca_cert: str
   log_level: list(trace|debug|info|warning|error|fatal)
