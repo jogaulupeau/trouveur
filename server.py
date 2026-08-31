@@ -282,12 +282,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send_json({"error": "Route inconnue"}, status=404)
         except HttpError as exc:
-            status = 502
-            message = str(exc)
-            if exc.status == 401:
-                message = "TMDB refuse la cle d'API. Verifie tmdb.api_key dans config.json."
-                status = 401
-            self._send_json({"error": message}, status=status)
+            self._send_json(_erreur_amont(exc), status=_statut_amont(exc))
         except TrackerError as exc:
             self._send_json({"error": str(exc)}, status=502)
         except PlexError as exc:
@@ -641,6 +636,52 @@ def sync_plex_watched() -> dict[str, Any]:
     result = seen.SEEN.sync_from_plex(watched)
     result["watched_on_plex"] = len(watched)
     return result
+
+
+def _service_amont(exc: HttpError) -> str:
+    """Nomme le service fautif d'apres l'hote de l'URL.
+
+    Pas d'apres les globales du module : elles n'existent qu'une fois
+    reload_services() passe, et un message d'erreur ne doit pas dependre de
+    l'ordre de demarrage.
+    """
+    texte = str(exc)
+    debut = texte.find("://")
+    if debut != -1:
+        hote = texte[debut + 3:].split("/")[0].split("?")[0]
+        if "themoviedb.org" in hote:
+            return "TMDB"
+        if hote:
+            return hote
+    return "Le service interrogé"
+
+
+def _statut_amont(exc: HttpError) -> int:
+    return 401 if exc.status == 401 else 502
+
+
+def _erreur_amont(exc: HttpError) -> dict[str, Any]:
+    """Distingue ce qui vient de la configuration de ce qui vient d'en face.
+
+    Un « HTTP 500 » brut laisse croire a une panne de Trouveur, et envoie
+    chercher la cause du mauvais cote.
+    """
+    if exc.status == 401:
+        return {"error": "TMDB refuse la clé d'API. Vérifie-la dans les réglages."}
+
+    if exc.status and exc.status >= 500:
+        return {
+            "error": "%s a renvoyé une erreur interne (HTTP %s), même après "
+                     "plusieurs tentatives. La panne est de son côté, pas du "
+                     "tien : réessaie dans un instant."
+                     % (_service_amont(exc), exc.status),
+            "amont": True,
+            "detail": str(exc),
+        }
+    if exc.status == 429:
+        return {"error": "%s limite le nombre d'appels. Patiente quelques "
+                         "secondes." % _service_amont(exc), "amont": True}
+    return {"error": str(exc)}
 
 
 def refresh_plex_library() -> dict[str, Any]:

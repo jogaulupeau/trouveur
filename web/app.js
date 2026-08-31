@@ -31,6 +31,9 @@ const state = {
   totalResults: 0,
   shownIds: new Set(),  // évite les doublons entre pages
   queryId: 0,           // incrémenté à chaque nouvelle recherche
+  // Une panne côté TMDB ne doit pas déclencher une rafale d'appels : le
+  // défilement automatique s'arrête, le bouton reste pour réessayer à la main.
+  autoPause: false,
 };
 
 /* ------------------------------ utilitaires ------------------------------ */
@@ -320,6 +323,7 @@ function resetGrid() {
   state.totalResults = 0;
   state.shownIds.clear();
   state.lastMovies = [];
+  state.autoPause = false;
   $('grid').textContent = '';
   showNotice(null);
 }
@@ -577,7 +581,10 @@ function bindEvents() {
 
   $('back-to-criteria').addEventListener('click', () => runSearch());
 
-  $('more-button').addEventListener('click', () => loadMore());
+  $('more-button').addEventListener('click', () => {
+    state.autoPause = false;   // c'est un geste délibéré
+    loadMore();
+  });
 
   // Défilement infini, par deux voies volontairement redondantes : l'observateur
   // est le mécanisme efficace, le défilement écouté prend le relais là où il est
@@ -772,13 +779,24 @@ async function fetchPage() {
     state.totalResults = data.total_results || 0;
     state.hasMore = Boolean(data.has_more);
     state.nextPage = data.next_page || state.nextPage + 1;
+    state.autoPause = false;
+    const sautees = data.skipped_pages || [];
+    if (sautees.length) {
+      // Le trou est réel : mieux vaut l'annoncer que de laisser croire à une
+      // liste complète.
+      showNotice(`TMDB n’a pas répondu sur ${sautees.length} page`
+        + `${sautees.length > 1 ? 's' : ''} de résultats : ces films-là manquent.`,
+        false);
+    }
 
     appendCards(fresh);
     renderMeta();
     return fresh.length;
   } catch (error) {
     showNotice(error.message, true);
-    state.hasMore = false;
+    // On garde « Afficher plus » : l'incident est passager, et une rafale
+    // automatique ne ferait qu'insister sur un service déjà en peine.
+    state.autoPause = true;
     return 0;
   } finally {
     state.loading = false;
@@ -796,7 +814,7 @@ function sentinelInView(margin = 600) {
 
 /** Déclencheur commun à l'observateur, au défilement et à l'après-chargement. */
 function maybeLoadMore() {
-  if (!state.hasMore || state.loading) return;
+  if (!state.hasMore || state.loading || state.autoPause) return;
   if (!sentinelInView()) return;
   loadMore();
 }

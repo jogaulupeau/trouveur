@@ -210,6 +210,30 @@ critères » repasse en mode découverte.
 L'ordre de pertinence de TMDB est conservé tel quel — reclasser par note ferait
 remonter des documentaires obscurs devant le film cherché.
 
+## Quand TMDB tombe sur une page
+
+TMDB rend par moments `HTTP 500` sur **une page précise** de `/discover/movie`,
+les pages voisines répondant normalement. Mesuré sur la requête qui l'a révélé :
+pages 1, 2 et 4 correctes, pages 3, 5, 7 et suivantes en erreur, et l'ensemble
+fautif change d'une minute à l'autre.
+
+**Réessayer ne sert à rien** : une page en panne l'est encore au sixième essai,
+à 0,6 s d'intervalle comme à 3 s. La panne est collée au couple (requête, page)
+et se dénoue toute seule au bout de quelques minutes.
+
+Trouveur **enjambe donc la page cassée** et sert la suivante — jusqu'à trois de
+suite (`SAUTS_MAX`). Une requête qui rendait une erreur rend maintenant vingt
+films, au prix d'un trou dans le classement, que l'interface annonce plutôt que
+de le taire.
+
+Deux essais courts subsistent malgré tout, pour l'à-coup réellement passager
+qu'un seul appel manquerait. Jamais sur un `POST` : créer deux fois une demande
+d'appairage Plex n'est pas la même chose que de la créer une fois. Jamais sur
+une erreur 4xx non plus, sauf `429`, dont l'en-tête `Retry-After` est respecté.
+
+Enfin, un échec ne relance plus le défilement automatique en rafale : le bouton
+**Afficher plus** reste, et c'est un geste délibéré qui réessaie.
+
 ## Au cinéma
 
 L'onglet **Au cinéma** liste les sorties en salle des 45 derniers jours dans ta

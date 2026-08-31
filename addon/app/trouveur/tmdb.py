@@ -17,6 +17,9 @@ IMAGE_BASE = "https://image.tmdb.org/t/p"
 # Au-dela, TMDB renvoie surtout du bruit : on borne le tirage aleatoire.
 MAX_RANDOM_PAGE = 20
 
+# Combien de pages on accepte d'enjamber quand TMDB en casse une.
+SAUTS_MAX = 3
+
 SORTS = {
     # "hasard" pioche dans le vivier des films populaires puis melange ; les
     # autres valeurs sont des tris stricts, rendus tels quels.
@@ -258,6 +261,38 @@ class Tmdb:
         total_pages = min(int(payload.get("total_pages") or 1), 500)
         return movies, total_pages, int(payload.get("total_results") or 0)
 
+    def _page_tolerante(
+        self, params: dict[str, Any], page: int, plafond: int = 500,
+    ) -> tuple[list[dict], int, int, int, list[int]]:
+        """Meme chose, mais une page en panne chez TMDB ne bloque pas la suite.
+
+        TMDB rend par moments HTTP 500 sur une page precise de /discover, les
+        pages voisines repondant normalement. Verifie : la meme page echoue
+        encore au sixieme essai, tandis que l'ensemble des pages fautives change
+        d'une minute a l'autre. Insister ne sert donc a rien ; avancer, si.
+
+        Renvoie aussi la page reellement servie et celles qu'on a du sauter,
+        pour que l'interface puisse le dire au lieu de faire comme si de rien
+        n'etait.
+        """
+        sautees: list[int] = []
+        derniere: HttpError | None = None
+
+        for essai in range(SAUTS_MAX + 1):
+            courante = page + essai
+            if courante > plafond:
+                break
+            try:
+                movies, total_pages, total = self._page(params, courante)
+                return movies, total_pages, total, courante, sautees
+            except HttpError as exc:
+                if not (exc.status and exc.status >= 500):
+                    raise
+                derniere = exc
+                sautees.append(courante)
+
+        raise derniere or HttpError("Page indisponible chez TMDB")
+
     def search(self, query: str, page: int = 1) -> dict[str, Any]:
         """Recherche par titre, la plus pertinente d'abord."""
         query = query.strip()
@@ -353,13 +388,14 @@ class Tmdb:
         # TMDB renvoie une erreur au-dela de la page 500 : on borne la demande
         # plutot que de lui transmettre un numero qu'il refusera.
         page = min(max(1, int(criteria.get("page") or 1)), 500)
-        movies, total_pages, total_results = self._page(params, page)
+        movies, total_pages, total_results, page, sautees = self._page_tolerante(
+            params, page)
 
         if page > total_pages:
             return {
                 "movies": [], "page": page, "next_page": None,
                 "total_pages": total_pages, "total_results": total_results,
-                "hidden_seen": 0, "has_more": False,
+                "hidden_seen": 0, "has_more": False, "skipped_pages": sautees,
             }
 
         if shuffle:
@@ -367,7 +403,9 @@ class Tmdb:
             pool = min(total_pages, MAX_RANDOM_PAGE)
             if pool > 1:
                 page = random.randint(1, pool)
-                movies, total_pages, total_results = self._page(params, page)
+                movies, total_pages, total_results, page, encore = (
+                    self._page_tolerante(params, page, plafond=pool))
+                sautees += encore
             random.shuffle(movies)
 
         hidden = 0
@@ -392,8 +430,14 @@ class Tmdb:
         # on va chercher la suite (trois pages au plus).
         last_page = page
         while len(movies) < limit and last_page < total_pages and last_page - page < 3:
-            last_page += 1
-            extra, _, _ = self._page(params, last_page)
+            try:
+                extra, _, _, last_page, encore = self._page_tolerante(
+                    params, last_page + 1, plafond=total_pages)
+            except HttpError:
+                # La grille est deja remplie en partie : mieux vaut la servir
+                # incomplete que de tout perdre pour une page cassee.
+                break
+            sautees += encore
             if shuffle:
                 random.shuffle(extra)
             movies.extend(tamise(extra))
@@ -413,6 +457,8 @@ class Tmdb:
             "total_results": None if apres_coup else total_results,
             "hidden_seen": hidden,
             "has_more": has_more,
+            # Dire ce qui manque vaut mieux qu'un trou silencieux.
+            "skipped_pages": sautees,
         }
 
     def _discover_params(self, criteria: dict[str, Any]) -> dict[str, Any]:
