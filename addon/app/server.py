@@ -13,6 +13,7 @@ restent cote serveur : le navigateur ne les voit jamais.
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import mimetypes
 import os
@@ -61,6 +62,11 @@ def reload_services() -> None:
 
     if not config_module.is_configured(CONFIG):
         print("Aucune cle TMDB : l'interface s'ouvrira sur l'ecran de configuration.")
+
+
+# Fenetre par defaut de l'onglet « Au cinema », alignee sur ce que TMDB
+# considere lui-meme comme « a l'affiche ».
+CINEMA_JOURS = 45
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -210,6 +216,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(self._bootstrap())
             elif path == "/api/discover":
                 self._send_json(self._discover(params))
+            elif path == "/api/cinema":
+                self._send_json(self._discover(params, cinema=True))
             elif path.startswith("/api/movie/"):
                 movie_id = path.rsplit("/", 1)[-1]
                 if not movie_id.isdigit():
@@ -354,7 +362,8 @@ class Handler(BaseHTTPRequestHandler):
         plateformes.extend(dict(p, local=False) for p in TMDB.providers(toutes=toutes))
         return {"providers": plateformes, "region": TMDB.region}
 
-    def _discover(self, params: dict[str, list[str]]) -> dict[str, Any]:
+    def _discover(self, params: dict[str, list[str]],
+                  cinema: bool = False) -> dict[str, Any]:
         criteria: dict[str, Any] = {
             "genres": _int_list(params.get("genres", [])),
             "exclude_genres": _int_list(params.get("exclude_genres", [])),
@@ -370,6 +379,18 @@ class Handler(BaseHTTPRequestHandler):
             "limit": _int(params, "limit") or 20,
             "page": _int(params, "page") or 1,
         }
+        if cinema:
+            jours = min(max(_int(params, "days") or CINEMA_JOURS, 1), 365)
+            aujourdhui = datetime.date.today()
+            criteria["cinema"] = {
+                "depuis": (aujourdhui - datetime.timedelta(days=jours)).isoformat(),
+                "jusqu_a": aujourdhui.isoformat(),
+            }
+            # L'onglet a son propre ordre, comme « Pour toi » : les dernieres
+            # sorties, c'est chronologique. Un tri par note serait de toute
+            # facon du bruit sans plancher de votes.
+            criteria["sort"] = "recent"
+
         # Un tri explicite doit etre rendu tel quel : seul "hasard" melange.
         criteria["shuffle"] = criteria["sort"] == "hasard"
 

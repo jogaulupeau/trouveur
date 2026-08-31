@@ -210,6 +210,33 @@ critères » repasse en mode découverte.
 L'ordre de pertinence de TMDB est conservé tel quel — reclasser par note ferait
 remonter des documentaires obscurs devant le film cherché.
 
+## Au cinéma
+
+L'onglet **Au cinéma** liste les sorties en salle des 45 derniers jours dans ta
+région, les plus récentes d'abord.
+
+Trois paramètres font tout le travail, et chacun a été vérifié contre l'API :
+
+- **`with_release_type=3|2`** (salle, salle en nombre limité). Sans lui, la même
+  fenêtre renvoie 771 films au lieu de 105 : TMDB y ajoute les sorties
+  numériques, physiques et TV, et remonte des films dont la date affichée est
+  deux ans plus tard.
+- **`region`**, qui fait comparer les dates de sortie *de cette région*
+  (`release_date`) et non la première sortie mondiale. Ce n'est pas cosmétique :
+  105 résultats en `FR` contre 374 en `US`, un seul titre commun en première
+  page.
+- **la fenêtre de dates**, 45 jours par défaut — ce que TMDB considère lui-même
+  comme « à l'affiche ». Réglable par `?days=`.
+
+**Note et popularité minimales ne s'appliquent pas ici, volontairement.** Un
+film sorti la semaine dernière n'a encore ni note ni votes : sur la fenêtre de
+45 jours, le plancher de 300 votes du panneau ramène 105 films à 10. L'onglet le
+dit sous son titre plutôt que de laisser croire à une panne. Genre, langue,
+durée et plateformes continuent de s'appliquer.
+
+Le tri du panneau est écarté, comme dans « Pour toi » : des *dernières* sorties
+se rangent par date.
+
 ## Pour toi
 
 L'onglet **Pour toi** construit des suggestions à partir des films déjà vus.

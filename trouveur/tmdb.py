@@ -466,6 +466,28 @@ class Tmdb:
             params["watch_region"] = self.region
             params["with_watch_monetization_types"] = "flatrate"
 
+        cinema = criteria.get("cinema")
+        if cinema:
+            # Le type de sortie n'est pas un detail : sans lui la meme fenetre
+            # ramene aussi les sorties numeriques et TV, et des films dont la
+            # date affichee est deux ans plus tard. 3 = salle, 2 = salle en
+            # nombre limite.
+            params["with_release_type"] = "3|2"
+            # Avec region, TMDB compare les dates de sortie **de cette region**
+            # (release_date), pas la premiere sortie mondiale.
+            params["release_date.gte"] = cinema["depuis"]
+            params["release_date.lte"] = cinema["jusqu_a"]
+            params.pop("primary_release_date.gte", None)
+            params.pop("primary_release_date.lte", None)
+
+            # Un film sorti la semaine derniere n'a ni note ni votes : les
+            # planchers habituels videraient l'onglet. Mesure faite sur une
+            # fenetre de 45 jours : 105 films, 10 seulement au-dela de 300
+            # votes.
+            params["vote_count.gte"] = 0
+            params.pop("vote_average.gte", None)
+            params.pop("vote_average.lte", None)
+
         return params
 
     def card(self, movie_id: int) -> dict[str, Any] | None:

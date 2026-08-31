@@ -288,6 +288,7 @@ async function toggleIgnore(movie) {
 const TITRES = {
   decouverte: 'Vos propositions',
   foryou: 'Pour toi',
+  cinema: 'Au cinéma',
   recherche: 'Résultats de recherche',
   watchlist: 'À voir',
   ignored: 'Ignorés',
@@ -347,6 +348,18 @@ async function showForYou() {
       'Pas encore assez de films vus pour te proposer quelque chose. Marque-en quelques-uns.',
       false,
     );
+  }
+}
+
+/** Les sorties en salle des dernières semaines, dans ta région. */
+async function showCinema() {
+  state.query = buildQuery();
+  resetGrid();
+  setMode('cinema');
+  $('results-meta').textContent = 'Sorties en salle…';
+  const added = await fetchPage();
+  if (!added) {
+    showNotice('Aucune sortie ne correspond à tes filtres sur cette période.', false);
   }
 }
 
@@ -558,6 +571,7 @@ function bindEvents() {
     const vue = tab.dataset.view;
     if (vue === 'decouverte') { runSearch(); }
     else if (vue === 'foryou') { showForYou(); }
+    else if (vue === 'cinema') { showCinema(); }
     else { showList(vue); }
   });
 
@@ -717,6 +731,14 @@ async function fetchPage() {
       route = `/api/search?q=${encodeURIComponent(state.searchQuery)}&page=${state.nextPage}`;
     } else if (state.mode === 'similaires') {
       route = `/api/similar?id=${state.similarTo.id}&page=${state.nextPage}`;
+    } else if (state.mode === 'cinema') {
+      const params = new URLSearchParams(state.query);
+      // Note et popularité minimales n'ont pas de sens sur des films tout
+      // juste sortis, et le tri est celui de l'onglet : par date.
+      ['sort', 'rating_min', 'votes_min', 'year_min', 'year_max', 'keyword']
+        .forEach((cle) => params.delete(cle));
+      params.set('page', state.nextPage);
+      route = `/api/cinema?${params}`;
     } else if (state.mode === 'foryou') {
       const params = new URLSearchParams(state.query);
       // Le tri est le seul critère écarté : l'onglet a son propre ordre.
@@ -817,6 +839,11 @@ function renderMeta() {
   }
   if (state.filteredOut) {
     parts.push(`${state.filteredOut} écartée${state.filteredOut > 1 ? 's' : ''} par tes filtres`);
+  }
+  if (state.mode === 'cinema') {
+    // Dire ce qui ne s'applique pas vaut mieux que laisser croire à un bug.
+    parts.push('sorties des 45 derniers jours, les plus récentes d’abord'
+      + '  ·  note et popularité minimales ignorées ici');
   }
   $('results-meta').textContent = parts.join('  ·  ');
   $('empty').hidden = state.lastMovies.length > 0;
