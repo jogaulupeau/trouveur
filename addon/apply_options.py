@@ -120,7 +120,23 @@ def main() -> int:
     if options.get("tracker_enabled"):
         bloc["enabled"] = True
     bloc.setdefault("enabled", False)
-    _set(config, "tracker.base_url", options.get("tracker_base_url"))
+    # Le tracker choisi dans la page fait autorite. L'option tracker_profile
+    # n'existe que pour pouvoir le poser depuis l'interface de l'add-on ; elle
+    # est facultative, et n'agit qu'en cas de changement.
+    profil = options.get("tracker_profile")
+    if profil and profil != bloc.get("profile"):
+        bloc["profile"] = profil
+        for cle in ("name", "base_url", "api_path", "auth", "header_name",
+                    "download_path"):
+            bloc.pop(cle, None)
+    bloc.setdefault("profile", "tr4ker.net")
+
+    # Une adresse explicite n'a de sens que pour un indexeur quelconque. Avec un
+    # profil nomme elle vient du profil, et une valeur restee dans les options
+    # ferait interroger l'ancien tracker avec la cle du nouveau -- sans rien
+    # dire. C'est exactement ce qui serait arrive en passant a v3x.
+    if bloc.get("profile") == "torznab":
+        _set(config, "tracker.base_url", options.get("tracker_base_url"))
     _set(config, "tracker.api_key", options.get("tracker_api_key"))
 
     bloc = config.setdefault("plex", {})

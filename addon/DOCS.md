@@ -148,6 +148,28 @@ Le bouton **Rafraîchir la bibliothèque Plex** le relit sur-le-champ et annonce
 ce qui a bougé — « 1 248 films (+3, −1) ». Les badges de la grille en cours sont
 redessinés dans la foulée.
 
+## Tracker
+
+Le tracker se choisit dans **Réglages → Tracker** : `tr4ker.net`, `v3x.club`, ou
+un indexeur Torznab quelconque. Un seul est actif à la fois.
+
+Pour v3x, la clé doit porter le scope **`torznab`**, créé dans Réglages → API de
+V3X. Laisser l'adresse vide : elle vient du profil.
+
+Le bouton **Tester la connexion** déroule trois étapes et distingue une mauvaise
+adresse d'une clé refusée, d'un scope manquant ou d'un film absent du catalogue.
+
+### Les options de l'add-on ne défont pas ce choix
+
+`tracker_profile` est **facultatif** : laissé vide, c'est la page qui décide, et
+le choix survit aux redémarrages. Le renseigner change de tracker depuis Home
+Assistant, en effaçant au passage les valeurs propres à l'ancien.
+
+`tracker_base_url` ne s'applique qu'avec le profil « torznab », qui est le seul
+à en avoir besoin. Avec un profil nommé, l'adresse vient du profil : une valeur
+restée dans les options ferait sinon interroger l'ancien tracker avec la clé du
+nouveau, sans rien dire.
+
 ## Qui peut ouvrir Trouveur
 
 Trouveur apparaît dans la barre latérale de **tous** les utilisateurs Home
