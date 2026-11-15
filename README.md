@@ -231,10 +231,24 @@ Chez V3X, le Torznab a son propre chemin, **hors de `/api`** : les routes
 `/api/...` servent autre chose (catégories, compte, déduplication). Le
 téléchargement aussi est hors de `/api`. Deux pièges qui ne se devinent pas.
 
-V3X accepte aussi `?apikey=` pour le scope `torznab`, mais sa propre
-documentation prévient qu'une clé en query finit dans les journaux du serveur :
-Trouveur prend donc le Bearer. La clé doit porter le scope **`torznab`**, créé
-dans Réglages → API de V3X.
+### L'authentification du point Torznab se découvre
+
+V3X documente le Bearer comme « valable pour tous les scopes ». En pratique sa
+recherche Torznab le refuse et veut `?apikey=` — le mode « imposé par
+Prowlarr/les *arr », donc le seul que leur implémentation exerce vraiment.
+`/api/me` et `t=caps`, eux, acceptent le Bearer : le premier parce qu'il est
+authentifié autrement, le second parce qu'il n'est pas authentifié du tout.
+
+Plutôt que de trancher à leur place, Trouveur essaie le mode configuré puis
+l'autre, et retient celui qui passe. Le mode retenu passe en premier aux appels
+suivants — il évite un aller-retour — mais **l'autre reste toujours
+disponible** : un `t=caps` servi sans authentification ferait sinon retenir un
+mode que la recherche refuse, et la recherche n'aurait plus de recours.
+
+La clé ne part en paramètre d'URL que si l'en-tête a été refusé. Elle doit
+porter le scope **`torznab`**, créé dans Réglages → API de V3X.
+
+Le diagnostic indique le mode finalement accepté.
 
 Tout ce qui est écrit dans `config.json` l'emporte sur le profil — celui-ci
 dispense de connaître ces détails, il ne les impose pas. En revanche les valeurs

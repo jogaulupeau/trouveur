@@ -118,6 +118,9 @@ class Tracker:
         self.header_name: str = settings.get("header_name") or "X-Api-Key"
         self.download_path: str = settings.get("download_path") or ""
         self.identity_path: str = settings.get("identity_path") or ""
+        # Mode d'authentification retenu pour le point d'acces Torznab, une
+        # fois qu'on a vu lequel passe. None = pas encore determine.
+        self._auth_torznab: str | None = settings.get("auth_torznab") or None
         # slug -> adresse du .torrent lue dans le flux. En memoire seulement :
         # cette adresse porte la cle d'API et n'a rien a faire sur le disque.
         self._telechargements: dict[str, str] = {}
@@ -141,28 +144,63 @@ class Tracker:
     # -- transport ---------------------------------------------------------
 
     def _headers(self) -> dict[str, str]:
-        if self.auth == "bearer":
-            return {self.header_name or "Authorization": "Bearer " + self.api_key}
-        if self.auth == "header":
-            return {self.header_name: self.api_key}
-        return {}
+        return self._entetes()
 
-    def _url(self, path: str, params: dict[str, Any] | None = None) -> str:
+    def _url(self, path: str, params: dict[str, Any] | None = None,
+             auth: str | None = None) -> str:
         clean = {k: v for k, v in (params or {}).items() if v not in (None, "")}
-        if self.auth not in ("header", "bearer"):
+        if (auth or self.auth) not in ("header", "bearer"):
             clean["apikey"] = self.api_key
         query = urllib.parse.urlencode(clean)
         return self.base_url + path + ("?" + query if query else "")
 
+    def _entetes(self, auth: str | None = None) -> dict[str, str]:
+        mode = auth or self.auth
+        if mode == "bearer":
+            return {self.header_name or "Authorization": "Bearer " + self.api_key}
+        if mode == "header":
+            return {self.header_name: self.api_key}
+        return {}
+
+    def _lire(self, path: str, params: dict[str, Any] | None = None) -> bytes:
+        """Lit une route du tracker, en s'adaptant a ce qu'il accepte vraiment.
+
+        V3X documente le Bearer comme « valable pour tous les scopes », mais sa
+        recherche Torznab le refuse : elle veut ?apikey=, « impose par
+        Prowlarr/les *arr » -- le seul chemin que leur implementation exerce
+        reellement. Plutot que de trancher a leur place, on essaie le mode
+        configure puis l'autre, et on retient celui qui passe.
+        """
+        # Le mode retenu passe en premier -- il evite un aller-retour -- mais
+        # l'autre reste toujours disponible. Un t=caps servi sans
+        # authentification fait sinon retenir un mode que la recherche refuse :
+        # c'est exactement ce qui se produit chez V3X.
+        prefere = self._auth_torznab or self.auth
+        alternatif = "query" if prefere in ("header", "bearer") else "bearer"
+        modes = [prefere, alternatif]
+
+        dernier: HttpError | None = None
+        for mode in modes:
+            try:
+                brut = get_bytes(self._url(path, params, auth=mode),
+                                 headers=self._entetes(mode), timeout=self.timeout)
+                self._auth_torznab = mode
+                return brut
+            except HttpError as exc:
+                if exc.status not in (401, 403):
+                    raise
+                dernier = exc
+        raise dernier or HttpError("Echec inattendu sur %s" % path)
+
     def _query(self, params: dict[str, Any]) -> list[dict[str, Any]]:
-        url = self._url(self.api_path, params)
         try:
-            raw = get_bytes(url, headers=self._headers(), timeout=self.timeout)
+            raw = self._lire(self.api_path, params)
         except HttpError as exc:
             if exc.status in (401, 403):
                 raise TrackerError(
-                    "%s refuse la cle d'API (HTTP %s). Verifie tracker.api_key "
-                    "dans config.json." % (self.name, exc.status)
+                    "%s refuse la clé pour la recherche (HTTP %s), en en-tête "
+                    "comme en paramètre d'URL. Vérifie qu'elle porte le scope "
+                    "« torznab »." % (self.name, exc.status)
                 ) from exc
             raise TrackerError(str(exc)) from exc
 
@@ -347,9 +385,14 @@ class Tracker:
                                  "cat": self.movie_category, "limit": 5}))
         if recherche is None:
             return {"ok": False, "steps": etapes}
-        etapes[-1]["detail"] = "%d résultat(s)" % len(recherche)
+        etiquette = {"bearer": "en-tête Bearer", "header": "en-tête %s" % self.header_name,
+                     "query": "paramètre ?apikey="}.get(self._auth_torznab or self.auth,
+                                                        self._auth_torznab or self.auth)
+        etapes[-1]["detail"] = "%d résultat(s), authentification par %s" % (
+            len(recherche), etiquette)
 
-        return {"ok": True, "steps": etapes, "categories": categories[:40]}
+        return {"ok": True, "steps": etapes, "categories": categories[:40],
+                "auth_torznab": self._auth_torznab or self.auth}
 
     def _identite(self) -> dict[str, Any]:
         """Qui parle, d'apres le tracker. JSON, hors Torznab."""
@@ -376,9 +419,8 @@ class Tracker:
 
     def _caps(self):
         """Capacites Torznab, en XML."""
-        url = self._url(self.api_path, {"t": "caps"})
         try:
-            raw = get_bytes(url, headers=self._headers(), timeout=self.timeout)
+            raw = self._lire(self.api_path, {"t": "caps"})
         except HttpError as exc:
             if exc.status in (401, 403):
                 raise TrackerError(

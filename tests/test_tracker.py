@@ -356,6 +356,80 @@ check("chemin faux : le chemin fautif est cite",
       "/chemin-inexistant" in _torznab.get("erreur", ""),
       _torznab.get("erreur", ""))
 
+# -- le tracker qui refuse le Bearer sur sa recherche -----------------------
+# Cas rencontre chez V3X : /api/me et t=caps acceptent le Bearer, mais la
+# recherche veut ?apikey= -- « impose par Prowlarr/les *arr ».
+
+_vus: list[dict] = []
+
+
+class FauxExigeantApikey(FauxAvecCaps):
+    def do_GET(self):
+        parse = urllib.parse.urlsplit(self.path)
+        params = urllib.parse.parse_qs(parse.query)
+        cherche = parse.path in CHEMINS_CONNUS and params.get("t") != ["caps"]             and parse.path != "/api/me"
+        if cherche:
+            _vus.append({"apikey": params.get("apikey"),
+                         "bearer": self.headers.get("Authorization")})
+            if not params.get("apikey"):
+                self.send_response(401)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+        FauxAvecCaps.do_GET(self)
+
+
+srv.shutdown()
+srv = ThreadingHTTPServer(("127.0.0.1", PORT), FauxExigeantApikey)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+_vus.clear()
+FLUX["courant"] = FLUX_V3X
+_bascule = construire("v3x.club", base_url=LOCAL)
+_r = _bascule.search_movie(tmdb_id=949, title="Heat", year=1995)
+check("la recherche aboutit malgre le Bearer refuse",
+      len(_r["torrents"]) == 1, json.dumps(_r)[:200])
+check("le Bearer a bien ete tente d'abord", _vus and _vus[0]["apikey"] is None,
+      str(_vus))
+check("la cle est repassee en parametre apres le refus",
+      any(v["apikey"] == [CLE] for v in _vus), str(_vus))
+check("le mode retenu est memorise", _bascule._auth_torznab == "query",
+      str(_bascule._auth_torznab))
+
+# Une fois retenu, on ne retente plus le mode qui echoue.
+_vus.clear()
+_bascule.search_movie(tmdb_id=603, title="Matrix", year=1999)
+check("le mode retenu evite un aller-retour inutile",
+      len(_vus) == 1 and _vus[0]["apikey"] == [CLE], str(_vus))
+
+# Le diagnostic doit aboutir lui aussi.
+_r = construire("v3x.club", base_url=LOCAL).test()
+check("le diagnostic aboutit avec ce tracker", _r["ok"] is True,
+      json.dumps(_r, ensure_ascii=False))
+
+# Un tracker qui refuse les deux modes doit le dire clairement.
+class FauxToutRefuse(FauxAvecCaps):
+    def do_GET(self):
+        parse = urllib.parse.urlsplit(self.path)
+        params = urllib.parse.parse_qs(parse.query)
+        if parse.path in CHEMINS_CONNUS and params.get("t") not in (["caps"], None)                 and parse.path != "/api/me":
+            self.send_response(401)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        FauxAvecCaps.do_GET(self)
+
+
+srv.shutdown()
+srv = ThreadingHTTPServer(("127.0.0.1", PORT), FauxToutRefuse)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+_r = construire("v3x.club", base_url=LOCAL).test()
+_echec = next((e.get("erreur", "") for e in _r["steps"] if not e["ok"]), "")
+check("un refus des deux modes est dit comme tel",
+      "en en-tête comme en paramètre" in _echec, _echec)
+check("le scope torznab est rappele a ce moment-la", "torznab" in _echec, _echec)
+
 # Tracker incomplet : le dire avant d'appeler quoi que ce soit.
 _vide = Tracker({"tracker": {"enabled": True, "profile": "v3x.club"}})
 _r = _vide.test()
