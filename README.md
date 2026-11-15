@@ -248,7 +248,12 @@ mode que la recherche refuse, et la recherche n'aurait plus de recours.
 La clé ne part en paramètre d'URL que si l'en-tête a été refusé. Elle doit
 porter le scope **`torznab`**, créé dans Réglages → API de V3X.
 
-Le diagnostic indique le mode finalement accepté.
+Le diagnostic indique le mode finalement accepté. Chez V3X, c'est
+`?apikey=` — vérifié contre le service réel.
+
+Le téléchargement du `.torrent` suit la même découverte : l'adresse lue dans le
+flux porte déjà ce qu'il faut, mais le chemin de repli — celui qui sert après un
+redémarrage, quand cette adresse est oubliée — doit s'authentifier seul.
 
 Tout ce qui est écrit dans `config.json` l'emporte sur le profil — celui-ci
 dispense de connaître ces détails, il ne les impose pas. En revanche les valeurs

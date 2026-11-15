@@ -430,6 +430,64 @@ check("un refus des deux modes est dit comme tel",
       "en en-tête comme en paramètre" in _echec, _echec)
 check("le scope torznab est rappele a ce moment-la", "torznab" in _echec, _echec)
 
+# -- le telechargement de repli doit s'authentifier pareil ------------------
+# Apres un redemarrage l'adresse lue dans le flux est oubliee ; le repli la
+# reconstruit, et doit decouvrir le mode accepte comme la recherche le fait.
+
+_tele: list[dict] = []
+
+
+class FauxTelechargementExigeant(FauxAvecCaps):
+    def do_GET(self):
+        parse = urllib.parse.urlsplit(self.path)
+        params = urllib.parse.parse_qs(parse.query)
+        if "/download" in parse.path:
+            _tele.append({"chemin": parse.path, "apikey": params.get("apikey"),
+                          "bearer": self.headers.get("Authorization")})
+            if not params.get("apikey"):
+                self.send_response(401)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+        FauxAvecCaps.do_GET(self)
+
+
+srv.shutdown()
+srv = ThreadingHTTPServer(("127.0.0.1", PORT), FauxTelechargementExigeant)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+_tele.clear()
+_neuf = construire("v3x.club", base_url=LOCAL)   # memoire vide : repli
+_fichier = _neuf.torrent_file("4242")
+check("le repli aboutit malgre l'en-tete refuse", _fichier.startswith(b"d8:"),
+      repr(_fichier[:20]))
+check("le repli vise bien /torrents/<id>/download",
+      _tele[-1]["chemin"] == "/torrents/4242/download", str(_tele))
+check("le repli bascule sur le parametre d'URL",
+      _tele[-1]["apikey"] == [CLE], str(_tele))
+
+# Et quand le tracker refuse tout, le message doit rester comprehensible.
+class FauxTelechargementMort(FauxAvecCaps):
+    def do_GET(self):
+        if "/download" in urllib.parse.urlsplit(self.path).path:
+            self.send_response(403)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        FauxAvecCaps.do_GET(self)
+
+
+srv.shutdown()
+srv = ThreadingHTTPServer(("127.0.0.1", PORT), FauxTelechargementMort)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+try:
+    construire("v3x.club", base_url=LOCAL).torrent_file("4242")
+    check("un refus de telechargement est explique", False, "aucune erreur")
+except TrackerError as exc:
+    check("un refus de telechargement est explique",
+          "Relance la recherche" in str(exc), str(exc))
+
 # Tracker incomplet : le dire avant d'appeler quoi que ce soit.
 _vide = Tracker({"tracker": {"enabled": True, "profile": "v3x.club"}})
 _r = _vide.test()

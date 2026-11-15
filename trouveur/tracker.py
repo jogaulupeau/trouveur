@@ -175,14 +175,18 @@ class Tracker:
         # l'autre reste toujours disponible. Un t=caps servi sans
         # authentification fait sinon retenir un mode que la recherche refuse :
         # c'est exactement ce qui se produit chez V3X.
+        return self._essayer(
+            lambda mode: self._url(path, params, auth=mode))
+
+    def _essayer(self, construire_url) -> bytes:
+        """Tente les deux modes d'authentification, retient celui qui passe."""
         prefere = self._auth_torznab or self.auth
         alternatif = "query" if prefere in ("header", "bearer") else "bearer"
-        modes = [prefere, alternatif]
 
         dernier: HttpError | None = None
-        for mode in modes:
+        for mode in (prefere, alternatif):
             try:
-                brut = get_bytes(self._url(path, params, auth=mode),
+                brut = get_bytes(construire_url(mode),
                                  headers=self._entetes(mode), timeout=self.timeout)
                 self._auth_torznab = mode
                 return brut
@@ -190,7 +194,7 @@ class Tracker:
                 if exc.status not in (401, 403):
                     raise
                 dernier = exc
-        raise dernier or HttpError("Echec inattendu sur %s" % path)
+        raise dernier or HttpError("Echec d'authentification")
 
     def _query(self, params: dict[str, Any]) -> list[dict[str, Any]]:
         try:
@@ -449,19 +453,27 @@ class Tracker:
         if not re.fullmatch(r"[A-Za-z0-9._-]{1,200}", slug):
             raise TrackerError("Identifiant de torrent invalide.")
 
-        url = self._adresse_telechargement(slug)
+        connue = self._telechargements.get(slug)
         try:
-            return get_bytes(url, headers=self._headers(), timeout=self.timeout)
+            if connue:
+                # Adresse lue dans le flux : elle porte deja ce qu'il faut.
+                # L'en-tete est ajoute en plus, au cas ou elle ne suffirait pas.
+                return self._essayer(lambda mode: connue)
+            return self._essayer(
+                lambda mode: self._url(self._gabarit_telechargement(slug),
+                                       auth=mode))
         except HttpError as exc:
+            if exc.status in (401, 403):
+                raise TrackerError(
+                    "%s refuse le téléchargement de ce torrent (HTTP %s). "
+                    "Relance la recherche : l'adresse du fichier a pu expirer."
+                    % (self.name, exc.status)) from exc
             raise TrackerError(str(exc)) from exc
 
-    def _adresse_telechargement(self, slug: str) -> str:
-        """L'adresse retenue lors de la recherche, sinon celle du profil."""
-        connue = self._telechargements.get(slug)
-        if connue:
-            return connue
+    def _gabarit_telechargement(self, slug: str) -> str:
+        """Chemin de repli, quand l'adresse lue dans le flux est oubliee."""
         if self.download_path:
-            return self._url(self.download_path.replace("{id}", slug))
+            return self.download_path.replace("{id}", slug)
         # Ni l'une ni l'autre : le dire plutot que de fabriquer une adresse au
         # hasard, qui echouerait avec un message incomprehensible.
         raise TrackerError(
