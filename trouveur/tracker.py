@@ -22,6 +22,7 @@ ne recoit qu'un identifiant opaque, qu'elle repasse au proxy local
 
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 import urllib.parse
@@ -54,15 +55,22 @@ PROFILS: dict[str, dict[str, Any]] = {
     },
     "v3x.club": {
         "name": "v3x.club",
-        # Tiree de la documentation de V3X ; modifiable si le site la change.
         "base_url": "https://api.v3x.club",
-        "api_path": "/api",
+        # Le Torznab de V3X n'est pas sous /api : il a son propre chemin, a
+        # cote des routes /api/... (categories, me, torrents/exists).
+        "api_path": "/torznab",
         # « Le parametre ?apikey= n'est accepte que pour le scope torznab [...]
         # une cle en query fuiterait dans les logs. » On prend donc le Bearer.
         "auth": "bearer",
         "header_name": "Authorization",
-        # L'adresse du .torrent vient du flux : rien a reconstruire.
-        "download_path": "",
+        # Le flux donne l'adresse du .torrent ; ceci ne sert qu'a la retrouver
+        # apres un redemarrage. Noter l'absence de /api, conforme a la
+        # documentation : api.v3x.club/torrents/<id>/download.
+        "download_path": "/torrents/{id}/download",
+        # Route d'identite, pour le diagnostic : elle repond avec n'importe
+        # quelle cle et prouve d'un coup l'adresse et la cle, sans dependre du
+        # chemin Torznab.
+        "identity_path": "/api/me",
     },
 }
 
@@ -109,6 +117,7 @@ class Tracker:
         self.auth: str = settings.get("auth") or "header"
         self.header_name: str = settings.get("header_name") or "X-Api-Key"
         self.download_path: str = settings.get("download_path") or ""
+        self.identity_path: str = settings.get("identity_path") or ""
         # slug -> adresse du .torrent lue dans le flux. En memoire seulement :
         # cette adresse porte la cle d'API et n'a rien a faire sur le disque.
         self._telechargements: dict[str, str] = {}
@@ -308,9 +317,19 @@ class Tracker:
             return {"ok": False, "steps": [],
                     "message": "Tracker incomplet : il manque %s." % manque}
 
-        # t=caps est l'appel de capacites du standard Torznab : il repond sans
-        # rien chercher, et exige deja l'authentification.
-        racine = etape("Interrogation de %s" % self.name,
+        # L'identite d'abord, quand le tracker en expose une : elle prouve
+        # l'adresse et la cle sans rien devoir au chemin Torznab. Sans elle,
+        # une cle valide sur un mauvais chemin ressemble a une cle refusee.
+        if self.identity_path:
+            compte = etape("Authentification auprès de %s" % self.name,
+                           self._identite)
+            if compte is None:
+                return {"ok": False, "steps": etapes}
+            qui = compte.get("username")
+            if qui:
+                etapes[-1]["detail"] = "compte « %s »" % qui
+
+        racine = etape("Point d'accès Torznab (%s)" % self.api_path,
                        lambda: self._caps())
         if racine is None:
             return {"ok": False, "steps": etapes}
@@ -332,6 +351,29 @@ class Tracker:
 
         return {"ok": True, "steps": etapes, "categories": categories[:40]}
 
+    def _identite(self) -> dict[str, Any]:
+        """Qui parle, d'apres le tracker. JSON, hors Torznab."""
+        url = self._url(self.identity_path)
+        try:
+            brut = get_bytes(url, headers=self._headers(), timeout=self.timeout)
+        except HttpError as exc:
+            if exc.status in (401, 403):
+                raise TrackerError(
+                    "%s refuse la clé (HTTP %s). Vérifie-la, et qu'elle porte "
+                    "bien le scope « torznab »." % (self.name, exc.status)
+                ) from exc
+            raise TrackerError(
+                "%s ne répond pas sur %s%s (%s). L'adresse est-elle la bonne ?"
+                % (self.name, self.base_url, self.identity_path, exc)
+            ) from exc
+        try:
+            donnees = json.loads(brut.decode("utf-8", "replace"))
+        except json.JSONDecodeError as exc:
+            raise TrackerError(
+                "%s a répondu autre chose que du JSON sur %s."
+                % (self.name, self.identity_path)) from exc
+        return donnees if isinstance(donnees, dict) else {}
+
     def _caps(self):
         """Capacites Torznab, en XML."""
         url = self._url(self.api_path, {"t": "caps"})
@@ -345,8 +387,8 @@ class Tracker:
                     % (self.name, exc.status)) from exc
             if exc.status == 404:
                 raise TrackerError(
-                    "%s ne répond pas sur %s%s. L'adresse ou le chemin d'API "
-                    "sont à corriger." % (self.name, self.base_url, self.api_path)
+                    "Rien sur %s%s. C'est le chemin du point d'accès Torznab "
+                    "qui est faux, pas la clé." % (self.base_url, self.api_path)
                 ) from exc
             raise TrackerError(str(exc)) from exc
 

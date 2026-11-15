@@ -223,7 +223,13 @@ Trois choses seulement les séparent, et chacune est un réglage porté par un
 |---|---|---|
 | Authentification | clé brute dans `X-Api-Key` | `Authorization: Bearer <clé>` |
 | Adresse | `https://tr4ker.net` | `https://api.v3x.club` |
-| Lien du `.torrent` | reconstruit depuis la page de détails | **publié dans le flux** |
+| Point d'accès Torznab | `/api` | **`/torznab`** |
+| Lien du `.torrent` | `/api/torrents/<id>/download` | publié dans le flux, repli `/torrents/<id>/download` |
+| Identité | — | `/api/me` |
+
+Chez V3X, le Torznab a son propre chemin, **hors de `/api`** : les routes
+`/api/...` servent autre chose (catégories, compte, déduplication). Le
+téléchargement aussi est hors de `/api`. Deux pièges qui ne se devinent pas.
 
 V3X accepte aussi `?apikey=` pour le scope `torznab`, mais sa propre
 documentation prévient qu'une clé en query finit dans les journaux du serveur :
@@ -249,10 +255,18 @@ une adresse au hasard.
 
 ### Tester
 
-Le bouton **Tester la connexion** du bloc Tracker déroule trois étapes —
-interrogation (`t=caps`), lecture de la réponse Torznab, recherche d'essai.
-« Aucun torrent trouvé » peut venir de l'adresse, de la clé, de son scope ou du
-catalogue : ces cas demandent des gestes différents.
+Le bouton **Tester la connexion** du bloc Tracker déroule quatre étapes :
+
+1. **Authentification** (`/api/me` chez V3X, ignorée chez les trackers qui n'en
+   exposent pas). Elle prouve l'adresse et la clé **sans rien devoir au chemin
+   Torznab** — sans elle, une clé valide sur un mauvais chemin ressemble à une
+   clé refusée, ce qui envoie chercher du mauvais côté.
+2. **Point d'accès Torznab** (`t=caps`), qui nomme le chemin testé.
+3. **Lecture de la réponse**, avec le nombre de catégories annoncées.
+4. **Recherche d'essai** sur un tmdbid connu.
+
+« Aucun torrent trouvé » peut venir de l'adresse, du chemin, de la clé, de son
+scope ou du catalogue : ces cas demandent des gestes différents.
 
 ## Quand TMDB tombe sur une page
 

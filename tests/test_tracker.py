@@ -70,6 +70,8 @@ FLUX_V3X = """<?xml version="1.0" encoding="UTF-8"?>
 
 recu: list[dict] = []
 FLUX = {"courant": FLUX_TR4KER}
+# Les seuls chemins que le faux tracker sert ; tout le reste rend 404.
+CHEMINS_CONNUS = {"/api", "/torznab", "/api/me"}
 
 
 class FauxIndexeur(BaseHTTPRequestHandler):
@@ -86,7 +88,18 @@ class FauxIndexeur(BaseHTTPRequestHandler):
             "entetes": {k.lower(): v for k, v in self.headers.items()},
         })
 
-        if "/download" in parse.path:
+        # Un vrai tracker ne sert pas du Torznab sur n'importe quel chemin :
+        # sans cela le test ne peut pas reproduire un chemin mal renseigne.
+        if parse.path not in CHEMINS_CONNUS and "/download" not in parse.path:
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
+        if parse.path == "/api/me":
+            corps = json.dumps({"username": "jo", "ratio": 3}).encode()
+            type_mime = "application/json"
+        elif "/download" in parse.path:
             corps, type_mime = b"d8:announce...e", "application/x-bittorrent"
         else:
             corps, type_mime = FLUX["courant"].encode("utf-8"), "application/xml"
@@ -182,14 +195,22 @@ check("tr4ker : l'adresse est reconstruite depuis le profil",
       recu[-1]["chemin"] == "/api/torrents/heat-1995-multi-2160p-abc123/download",
       recu[-1]["chemin"])
 
-# Redemarrage : v3x ne publie son adresse que dans les resultats de recherche.
-# Mieux vaut le dire que fabriquer une adresse au hasard.
+# Redemarrage : l'adresse lue dans le flux est perdue. Le profil en fournit une
+# de repli, hors de /api comme le veut la documentation de V3X.
+recu.clear()
 neuf = construire("v3x.club", base_url=LOCAL)
+neuf.torrent_file("4242")
+check("v3x : sans memoire, le repli du profil sert",
+      recu[-1]["chemin"] == "/torrents/4242/download", recu[-1]["chemin"])
+
+# Un indexeur quelconque n'a ni l'un ni l'autre : le dire plutot que de
+# fabriquer une adresse au hasard.
+_quelconque = construire("torznab", base_url=LOCAL, name="indexeur")
 try:
-    neuf.torrent_file("4242")
-    check("v3x : une adresse oubliee est signalee", False, "aucune erreur")
+    _quelconque.torrent_file("4242")
+    check("sans repli, l'adresse manquante est signalee", False, "aucune erreur")
 except TrackerError as exc:
-    check("v3x : une adresse oubliee est signalee",
+    check("sans repli, l'adresse manquante est signalee",
           "Relance la recherche" in str(exc), str(exc))
 
 # -- garde-fous conserves ----------------------------------------------------
@@ -270,7 +291,14 @@ class FauxAvecCaps(FauxIndexeur):
     def do_GET(self):
         parse = urllib.parse.urlsplit(self.path)
         params = urllib.parse.parse_qs(parse.query)
-        if params.get("t") == ["caps"]:
+        if parse.path == "/api/me" and _etat["caps"] != 200:
+            # Une cle refusee l'est partout, identite comprise.
+            recu.append({"chemin": parse.path, "params": params, "entetes": {}})
+            self.send_response(_etat["caps"])
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if params.get("t") == ["caps"] and parse.path in CHEMINS_CONNUS:
             recu.append({"chemin": parse.path, "params": params,
                          "entetes": {k.lower(): v for k, v in self.headers.items()}})
             code = _etat["caps"]
@@ -292,7 +320,9 @@ FLUX["courant"] = FLUX_V3X
 _diag = construire("v3x.club", base_url=LOCAL)
 _r = _diag.test()
 check("le diagnostic aboutit", _r["ok"] is True, json.dumps(_r, ensure_ascii=False))
-check("il deroule trois etapes", len(_r["steps"]) == 3, str(_r["steps"]))
+check("il deroule quatre etapes", len(_r["steps"]) == 4, str(_r["steps"]))
+check("le compte est nomme",
+      any("jo" in (e.get("detail") or "") for e in _r["steps"]), str(_r["steps"]))
 check("les categories sont lues", "Movies" in (_r.get("categories") or []),
       str(_r.get("categories")))
 
@@ -308,6 +338,23 @@ _etat["caps"] = 500
 _r = construire("v3x.club", base_url=LOCAL).test()
 check("un echec laisse ok a faux", _r["ok"] is False, json.dumps(_r, ensure_ascii=False))
 _etat["caps"] = 200
+
+# Le cas reellement rencontre : la cle est bonne, le chemin Torznab est faux.
+# Le diagnostic doit nommer le chemin, pas accuser la cle.
+_mauvais = construire("v3x.club", base_url=LOCAL, api_path="/chemin-inexistant")
+_r = _mauvais.test()
+_identite = _r["steps"][0]
+_torznab = next((e for e in _r["steps"] if not e["ok"]), {})
+check("chemin faux : l'authentification passe quand meme",
+      _identite["ok"] is True, str(_identite))
+check("chemin faux : c'est le chemin qui est mis en cause",
+      "chemin du point d'acc" in _torznab.get("erreur", ""),
+      _torznab.get("erreur", ""))
+check("chemin faux : la cle est explicitement disculpee",
+      "pas la cl" in _torznab.get("erreur", ""), _torznab.get("erreur", ""))
+check("chemin faux : le chemin fautif est cite",
+      "/chemin-inexistant" in _torznab.get("erreur", ""),
+      _torznab.get("erreur", ""))
 
 # Tracker incomplet : le dire avant d'appeler quoi que ce soit.
 _vide = Tracker({"tracker": {"enabled": True, "profile": "v3x.club"}})
