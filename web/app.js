@@ -609,7 +609,13 @@ function bindEvents() {
   $('plex-connect').addEventListener('click', plexConnect);
   $('plex-sync-now').addEventListener('click', plexSyncNow);
   $('plex-refresh-now').addEventListener('click', plexRefreshNow);
+  $('set-tracker-profile').addEventListener('change', () => {
+    // Changer de tracker rend l'ancienne adresse caduque.
+    $('set-tracker-url').value = '';
+    decrireProfilTracker();
+  });
   $('deluge-test').addEventListener('click', delugeTest);
+  $('tracker-test').addEventListener('click', trackerTest);
   ROLES_CERT.forEach((role) => {
     $(`cert-${role}-file`).addEventListener('change', (e) => deposerCertificat(role, e.target));
   });
@@ -1629,6 +1635,7 @@ async function loadSettings() {
   $('set-tmdb-region').value = s.tmdb.region;
 
   $('set-tracker-enabled').checked = s.tracker.enabled;
+  remplirProfilsTracker(s.tracker);
   $('set-tracker-url').value = s.tracker.base_url;
   $('set-tracker-key').placeholder = s.tracker.has_key ? '•••••••• (enregistrée)' : '';
   $('set-tracker-key').value = '';
@@ -1654,6 +1661,7 @@ async function loadSettings() {
   $('set-deluge-paused').checked = s.deluge.add_paused;
   $('set-deluge-verify').checked = s.deluge.verify_tls;
   $('deluge-state').textContent = '';
+  $('tracker-state').textContent = '';
 
   await buildServiceChoices(s.streaming.my_services);
 }
@@ -1685,6 +1693,7 @@ async function saveSettings(event) {
         },
         tracker: {
           enabled: $('set-tracker-enabled').checked,
+          profile: $('set-tracker-profile').value,
           base_url: $('set-tracker-url').value.trim(),
           api_key: $('set-tracker-key').value.trim(),
         },
@@ -1939,6 +1948,86 @@ async function buildServiceChoices(selection) {
     });
     box.appendChild(chip);
   });
+}
+
+/* ---- choix du tracker ---- */
+
+/** « Aucun torrent » peut venir de l'adresse, de la clé, de son scope ou du
+ *  catalogue : le diagnostic sépare ces cas plutôt que de laisser chercher. */
+async function trackerTest() {
+  const bouton = $('tracker-test');
+  const box = $('tracker-state');
+  bouton.disabled = true;
+  bouton.textContent = 'Test en cours…';
+  box.textContent = '';
+  box.appendChild(el('p', 'settings-state', 'Interrogation du tracker…'));
+
+  let r;
+  try {
+    r = await api('/api/tracker/test');
+  } catch (error) {
+    box.textContent = '';
+    box.appendChild(el('p', 'settings-state is-error', error.message));
+    bouton.disabled = false;
+    bouton.textContent = 'Tester la connexion';
+    return;
+  }
+
+  box.textContent = '';
+  (r.steps || []).forEach((etape) => {
+    const ligne = el('p', `settings-state ${etape.ok ? 'is-ok' : 'is-error'}`);
+    ligne.textContent = `${etape.ok ? '✓' : '✗'} ${etape.etape}`
+      + (etape.detail ? ` — ${etape.detail}` : '')
+      + (etape.erreur ? ` — ${etape.erreur}` : '');
+    box.appendChild(ligne);
+  });
+  if (!r.steps || !r.steps.length) {
+    box.appendChild(el('p', 'settings-state', r.message || 'Tracker non configuré.'));
+  }
+
+  bouton.disabled = false;
+  bouton.textContent = 'Tester la connexion';
+  await bootstrap();
+}
+
+
+const ETIQUETTES_TRACKER = {
+  'tr4ker.net': 'tr4ker.net',
+  'v3x.club': 'v3x.club',
+  torznab: 'Autre indexeur Torznab',
+};
+
+function remplirProfilsTracker(tracker) {
+  const select = $('set-tracker-profile');
+  select.textContent = '';
+  (tracker.profiles || []).forEach((nom) => {
+    const option = el('option', null, ETIQUETTES_TRACKER[nom] || nom);
+    option.value = nom;
+    select.appendChild(option);
+  });
+  select.value = tracker.profile;
+  decrireProfilTracker();
+}
+
+/** Dit ce que le choix implique, au lieu de laisser deviner. */
+function decrireProfilTracker() {
+  const profil = $('set-tracker-profile').value;
+  const url = $('set-tracker-url');
+  const aide = $('tracker-profile-help');
+
+  if (profil === 'torznab') {
+    aide.textContent = 'Indexeur Torznab quelconque : renseigne son adresse '
+      + 'ci-dessous. Les détails (authentification, chemin d’API) se règlent '
+      + 'dans config.json.';
+    url.placeholder = 'https://mon-indexeur.example';
+  } else if (profil === 'v3x.club') {
+    aide.textContent = 'Clé à créer dans Réglages → API de V3X, avec le scope '
+      + '« torznab ». Laisse l’adresse vide pour utiliser celle du profil.';
+    url.placeholder = 'https://api.v3x.club';
+  } else {
+    aide.textContent = 'Laisse l’adresse vide pour utiliser celle du profil.';
+    url.placeholder = 'https://tr4ker.net';
+  }
 }
 
 /* ---- relecture de la bibliothèque Plex à la demande ---- */

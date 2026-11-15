@@ -1,12 +1,23 @@
-"""Adaptateur tracker Torznab (tr4ker.net par defaut).
+"""Adaptateur tracker Torznab.
 
-tr4ker expose une API Torznab standard sur /api : la recherche de films accepte
-un tmdbid, ce qui evite tout rapprochement approximatif par titre. Le protocole
-etant un standard, cet adaptateur fonctionne avec n'importe quel indexeur
-Torznab en changeant base_url dans config.json.
+tr4ker.net et v3x.club exposent tous deux du Torznab : ce ne sont pas deux
+protocoles, mais deux dialectes du meme. Ce qui les separe tient en trois
+points, et chacun est un reglage, pas une branche de code :
 
-La cle d'API voyage en en-tete et ne sort jamais du serveur : les liens de
-telechargement proposes a l'interface passent par le proxy local /api/torrent.
+  - **l'authentification.** tr4ker lit une cle brute dans X-Api-Key ; v3x veut
+    un jeton Bearer (il accepte ?apikey= pour le scope torznab, mais une cle en
+    query finit dans les journaux du serveur d'en face) ;
+  - **l'adresse.** Chaque tracker a la sienne, api_path compris ;
+  - **le telechargement du .torrent.** tr4ker se devine depuis la page de
+    details ; v3x fournit l'adresse directement dans le flux. Le flux fait
+    autorite quand il la donne : c'est le standard, et cela evite de deviner.
+
+Un profil nomme porte ces valeurs (voir PROFILS) pour qu'une configuration se
+resume a choisir un tracker, sans avoir a connaitre ces details.
+
+La cle d'API ne sort jamais du serveur, quel que soit le tracker : l'interface
+ne recoit qu'un identifiant opaque, qu'elle repasse au proxy local
+/api/torrent.
 """
 
 from __future__ import annotations
@@ -21,6 +32,39 @@ from . import cache
 from .http_client import HttpError, get_bytes, register_secret
 
 TORZNAB_NS = "{http://torznab.com/schemas/2015/feed}"
+
+# Adresses de telechargement gardees en memoire. Au-dela, on repart a zero :
+# une adresse oubliee se retrouve en relancant la recherche.
+MEMOIRE_MAX = 4000
+
+# Reglages connus, par tracker. Tout est surchargeable dans config.json : un
+# profil ne fait que dispenser de les retrouver.
+PROFILS: dict[str, dict[str, Any]] = {
+    # Indexeur Torznab quelconque : aucune hypothese.
+    "torznab": {},
+    "tr4ker.net": {
+        "name": "tr4ker.net",
+        "base_url": "https://tr4ker.net",
+        "api_path": "/api",
+        "auth": "header",
+        "header_name": "X-Api-Key",
+        # Ce tracker ne publie pas l'adresse du .torrent dans le flux : elle se
+        # reconstruit depuis l'identifiant lu sur la page de details.
+        "download_path": "/api/torrents/{id}/download",
+    },
+    "v3x.club": {
+        "name": "v3x.club",
+        # Tiree de la documentation de V3X ; modifiable si le site la change.
+        "base_url": "https://api.v3x.club",
+        "api_path": "/api",
+        # « Le parametre ?apikey= n'est accepte que pour le scope torznab [...]
+        # une cle en query fuiterait dans les logs. » On prend donc le Bearer.
+        "auth": "bearer",
+        "header_name": "Authorization",
+        # L'adresse du .torrent vient du flux : rien a reconstruire.
+        "download_path": "",
+    },
+}
 
 # Etiquettes deduites du nom de release, faute de champs dedies cote tracker.
 RESOLUTIONS = ("2160p", "1080p", "720p", "576p", "480p")
@@ -39,9 +83,24 @@ class TrackerError(RuntimeError):
     pass
 
 
+def _avec_profil(settings: dict[str, Any]) -> dict[str, Any]:
+    """Valeurs du profil choisi, surchargees par ce qui est ecrit en clair.
+
+    Ce qui est dans config.json gagne toujours : un profil est une commodite,
+    pas une contrainte.
+    """
+    profil = PROFILS.get(settings.get("profile") or "", {})
+    fusion = dict(profil)
+    for cle, valeur in settings.items():
+        if valeur not in (None, ""):
+            fusion[cle] = valeur
+    return fusion
+
+
 class Tracker:
     def __init__(self, config: dict[str, Any]):
-        settings = config.get("tracker", {})
+        settings = _avec_profil(config.get("tracker", {}))
+        self.profile: str = settings.get("profile") or "torznab"
         self.enabled: bool = bool(settings.get("enabled"))
         self.name: str = settings.get("name") or "tracker"
         self.base_url: str = (settings.get("base_url") or "").rstrip("/")
@@ -49,6 +108,10 @@ class Tracker:
         self.api_key: str = (settings.get("api_key") or "").strip()
         self.auth: str = settings.get("auth") or "header"
         self.header_name: str = settings.get("header_name") or "X-Api-Key"
+        self.download_path: str = settings.get("download_path") or ""
+        # slug -> adresse du .torrent lue dans le flux. En memoire seulement :
+        # cette adresse porte la cle d'API et n'a rien a faire sur le disque.
+        self._telechargements: dict[str, str] = {}
         self.movie_category: str = str(settings.get("movie_category") or "2000")
         self.limit: int = int(settings.get("limit") or 100)
         self.timeout: int = int(settings.get("timeout") or 15)
@@ -69,11 +132,15 @@ class Tracker:
     # -- transport ---------------------------------------------------------
 
     def _headers(self) -> dict[str, str]:
-        return {self.header_name: self.api_key} if self.auth == "header" else {}
+        if self.auth == "bearer":
+            return {self.header_name or "Authorization": "Bearer " + self.api_key}
+        if self.auth == "header":
+            return {self.header_name: self.api_key}
+        return {}
 
     def _url(self, path: str, params: dict[str, Any] | None = None) -> str:
         clean = {k: v for k, v in (params or {}).items() if v not in (None, "")}
-        if self.auth != "header":
+        if self.auth not in ("header", "bearer"):
             clean["apikey"] = self.api_key
         query = urllib.parse.urlencode(clean)
         return self.base_url + path + ("?" + query if query else "")
@@ -107,6 +174,17 @@ class Tracker:
         name = (node.findtext("title") or "").strip()
         details = node.findtext("comments") or node.findtext("guid") or None
 
+        # Torznab publie l'adresse du .torrent dans <enclosure url> ou <link>.
+        # Quand elle est la, elle fait autorite : la reconstruire reviendrait a
+        # deviner ce que le tracker vient de nous dire.
+        enclosure = node.find("enclosure")
+        telechargement = (enclosure.get("url") if enclosure is not None else None)
+        if not telechargement:
+            lien = (node.findtext("link") or "").strip()
+            # <link> pointe parfois sur la fiche, pas sur le fichier : on ne le
+            # retient que s'il se distingue de l'adresse de details.
+            telechargement = lien if lien and lien != details else None
+
         return {
             "name": name,
             "size": _to_int(attrs.get("size")),
@@ -122,7 +200,10 @@ class Tracker:
             "freeleech": attrs.get("downloadvolumefactor") == "0",
             # Le slug identifie le .torrent ; l'interface le passe au proxy local
             # plutot que de manipuler une URL portant la cle d'API.
-            "slug": _slug_from(details),
+            "slug": _slug_from(details) or _slug_from(telechargement),
+            # Jamais transmis au navigateur ni ecrit en cache : cette adresse
+            # porte la cle d'API.
+            "download": telechargement,
             "tags": parse_tags(name),
         }
 
@@ -168,6 +249,7 @@ class Tracker:
 
         results = [t for t in results if t["name"] and self._is_movie(t)]
         results.sort(key=lambda t: (-(t["seeders"] or 0), -(t["size"] or 0)))
+        results = [self._retenir(t) for t in results]
         payload = {
             "torrents": results[: self.max_results],
             "matched_by": matched_by,
@@ -177,6 +259,24 @@ class Tracker:
         cache.put(cache_key, payload)
         return payload
 
+    def _retenir(self, torrent: dict[str, Any]) -> dict[str, Any]:
+        """Met l'adresse de telechargement de cote et la retire du resultat.
+
+        Elle porte la cle d'API : elle ne doit ni partir vers le navigateur, ni
+        etre ecrite dans le cache sur disque. Seul l'identifiant circule, et le
+        proxy local le retraduit au moment du telechargement.
+        """
+        torrent = dict(torrent)
+        adresse = torrent.pop("download", None)
+        slug = torrent.get("slug")
+        if adresse and slug:
+            if len(self._telechargements) >= MEMOIRE_MAX:
+                # Borne simple : on repart a zero plutot que de grossir sans
+                # fin. Une adresse oubliee est rejouable par une recherche.
+                self._telechargements.clear()
+            self._telechargements[slug] = adresse
+        return torrent
+
     def _is_movie(self, torrent: dict[str, Any]) -> bool:
         """Le tracker n'applique pas cat= : on filtre nous-memes les categories."""
         category = torrent.get("category")
@@ -185,17 +285,106 @@ class Tracker:
         base = self.movie_category[:1]
         return str(category).startswith(base)
 
+    def test(self) -> dict[str, Any]:
+        """Diagnostic pour l'ecran de reglages, etape par etape.
+
+        « Aucun torrent trouve » peut vouloir dire une adresse fausse, une cle
+        refusee, un scope manquant ou simplement un film absent du catalogue.
+        Ces cas demandent des gestes differents : autant les distinguer.
+        """
+        etapes: list[dict[str, Any]] = []
+
+        def etape(nom: str, action) -> Any:
+            try:
+                resultat = action()
+                etapes.append({"etape": nom, "ok": True})
+                return resultat
+            except TrackerError as exc:
+                etapes.append({"etape": nom, "ok": False, "erreur": str(exc)})
+                return None
+
+        if not self.configured:
+            manque = "l'adresse" if not self.base_url else "la clé d'API"
+            return {"ok": False, "steps": [],
+                    "message": "Tracker incomplet : il manque %s." % manque}
+
+        # t=caps est l'appel de capacites du standard Torznab : il repond sans
+        # rien chercher, et exige deja l'authentification.
+        racine = etape("Interrogation de %s" % self.name,
+                       lambda: self._caps())
+        if racine is None:
+            return {"ok": False, "steps": etapes}
+
+        categories = [c.get("name") for c in racine.iter("category") if c.get("name")]
+        etapes.append({
+            "etape": "Réponse Torznab comprise", "ok": True,
+            "detail": ("%d catégories annoncées" % len(categories)) if categories
+                      else "aucune catégorie annoncée",
+        })
+
+        recherche = etape(
+            "Recherche d'essai (tmdbid 949)",
+            lambda: self._query({"t": "movie", "tmdbid": 949,
+                                 "cat": self.movie_category, "limit": 5}))
+        if recherche is None:
+            return {"ok": False, "steps": etapes}
+        etapes[-1]["detail"] = "%d résultat(s)" % len(recherche)
+
+        return {"ok": True, "steps": etapes, "categories": categories[:40]}
+
+    def _caps(self):
+        """Capacites Torznab, en XML."""
+        url = self._url(self.api_path, {"t": "caps"})
+        try:
+            raw = get_bytes(url, headers=self._headers(), timeout=self.timeout)
+        except HttpError as exc:
+            if exc.status in (401, 403):
+                raise TrackerError(
+                    "%s refuse la clé (HTTP %s). Vérifie-la, et pour v3x qu'elle "
+                    "porte bien le scope « torznab »."
+                    % (self.name, exc.status)) from exc
+            if exc.status == 404:
+                raise TrackerError(
+                    "%s ne répond pas sur %s%s. L'adresse ou le chemin d'API "
+                    "sont à corriger." % (self.name, self.base_url, self.api_path)
+                ) from exc
+            raise TrackerError(str(exc)) from exc
+
+        try:
+            return ET.fromstring(raw)
+        except ET.ParseError as exc:
+            raise TrackerError(
+                "%s a répondu, mais pas en Torznab (XML attendu). L'adresse "
+                "pointe-t-elle bien sur le point d'accès Torznab ?" % self.name
+            ) from exc
+
     def torrent_file(self, slug: str) -> bytes:
         """Recupere le .torrent, cle ajoutee cote serveur."""
         if not self.configured:
             raise TrackerError("Tracker non configure.")
         if not re.fullmatch(r"[A-Za-z0-9._-]{1,200}", slug):
             raise TrackerError("Identifiant de torrent invalide.")
-        url = self._url("/api/torrents/%s/download" % slug)
+
+        url = self._adresse_telechargement(slug)
         try:
             return get_bytes(url, headers=self._headers(), timeout=self.timeout)
         except HttpError as exc:
             raise TrackerError(str(exc)) from exc
+
+    def _adresse_telechargement(self, slug: str) -> str:
+        """L'adresse retenue lors de la recherche, sinon celle du profil."""
+        connue = self._telechargements.get(slug)
+        if connue:
+            return connue
+        if self.download_path:
+            return self._url(self.download_path.replace("{id}", slug))
+        # Ni l'une ni l'autre : le dire plutot que de fabriquer une adresse au
+        # hasard, qui echouerait avec un message incomprehensible.
+        raise TrackerError(
+            "%s ne publie l'adresse du .torrent que dans ses résultats de "
+            "recherche, et celle-ci n'est plus en mémoire (serveur redémarré ?). "
+            "Relance la recherche pour ce film." % self.name
+        )
 
 
 # -- utilitaires ------------------------------------------------------------

@@ -230,6 +230,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_torrent_file(params)
             elif path == "/api/deluge/test":
                 self._send_json(DELUGE.test())
+            elif path == "/api/tracker/test":
+                self._send_json(TRACKER.test())
             elif path == "/api/settings":
                 self._send_json(settings_module.current())
             elif path == "/api/plex/login/poll":

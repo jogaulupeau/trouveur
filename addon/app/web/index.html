@@ -373,6 +373,11 @@
             <span class="switch-label">Chercher les torrents disponibles</span>
           </label>
           <label class="settings-field">
+            <span>Tracker</span>
+            <select id="set-tracker-profile"></select>
+          </label>
+          <p class="settings-help settings-sub" id="tracker-profile-help"></p>
+          <label class="settings-field">
             <span>Adresse</span>
             <input type="text" id="set-tracker-url" placeholder="https://tr4ker.net">
           </label>
@@ -380,6 +385,10 @@
             <span>Clé d'API</span>
             <input type="password" id="set-tracker-key" autocomplete="off">
           </label>
+          <button type="button" class="btn btn-ghost settings-sync" id="tracker-test">
+            Tester la connexion
+          </button>
+          <div id="tracker-state"></div>
         </section>
 
         <div id="settings-notice" class="notice" hidden></div>

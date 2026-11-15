@@ -18,6 +18,7 @@ from typing import Any
 
 from . import config as config_module
 from . import certificates
+from . import tracker as tracker_module
 from . import plex_auth
 
 # Les demandes de connexion Plex en cours, le temps que l'utilisateur approuve.
@@ -54,6 +55,8 @@ def current() -> dict[str, Any]:
         },
         "tracker": {
             "enabled": bool(tracker.get("enabled")),
+            "profile": tracker.get("profile") or "torznab",
+            "profiles": sorted(tracker_module.PROFILS),
             "name": tracker.get("name", ""),
             "base_url": tracker.get("base_url", ""),
             "has_key": bool(tracker.get("api_key")),
@@ -115,8 +118,19 @@ def update(payload: dict[str, Any]) -> dict[str, Any]:
     tracker = payload.get("tracker") or {}
     bloc = config.setdefault("tracker", {})
     _pose(bloc, "enabled", tracker.get("enabled"))
-    _pose(bloc, "base_url", tracker.get("base_url") or None)
     _pose(bloc, "api_key", tracker.get("api_key"), secret=True)
+
+    # Changer de tracker doit suffire : les valeurs propres a l'ancien — son
+    # adresse, son mode d'authentification — seraient fausses pour le nouveau.
+    # On les efface pour laisser le profil reprendre la main, sauf si
+    # l'utilisateur fournit lui-meme une adresse.
+    profil = tracker.get("profile")
+    if profil in tracker_module.PROFILS and profil != bloc.get("profile"):
+        bloc["profile"] = profil
+        for cle in ("name", "base_url", "api_path", "auth", "header_name",
+                    "download_path"):
+            bloc.pop(cle, None)
+    _pose(bloc, "base_url", tracker.get("base_url") or None)
 
     plex = payload.get("plex") or {}
     bloc = config.setdefault("plex", {})

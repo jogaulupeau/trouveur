@@ -210,6 +210,50 @@ critères » repasse en mode découverte.
 L'ordre de pertinence de TMDB est conservé tel quel — reclasser par note ferait
 remonter des documentaires obscurs devant le film cherché.
 
+## Choisir son tracker
+
+tr4ker.net et v3x.club exposent tous deux du **Torznab** : ce ne sont pas deux
+protocoles, mais deux dialectes du même. Un seul est actif à la fois, choisi
+dans **Réglages → Tracker**.
+
+Trois choses seulement les séparent, et chacune est un réglage porté par un
+*profil* (`PROFILS` dans [`trouveur/tracker.py`](trouveur/tracker.py)) :
+
+| | tr4ker.net | v3x.club |
+|---|---|---|
+| Authentification | clé brute dans `X-Api-Key` | `Authorization: Bearer <clé>` |
+| Adresse | `https://tr4ker.net` | `https://api.v3x.club` |
+| Lien du `.torrent` | reconstruit depuis la page de détails | **publié dans le flux** |
+
+V3X accepte aussi `?apikey=` pour le scope `torznab`, mais sa propre
+documentation prévient qu'une clé en query finit dans les journaux du serveur :
+Trouveur prend donc le Bearer. La clé doit porter le scope **`torznab`**, créé
+dans Réglages → API de V3X.
+
+Tout ce qui est écrit dans `config.json` l'emporte sur le profil — celui-ci
+dispense de connaître ces détails, il ne les impose pas. En revanche les valeurs
+propres à un tracker (adresse, authentification, chemin de téléchargement) ne
+figurent **pas** dans les valeurs par défaut : elles y survivraient à un
+changement de tracker, et `config.load()` les réinjecterait après coup.
+
+### Le lien de téléchargement
+
+Quand le flux Torznab publie l'adresse du `.torrent` — c'est le standard, et
+c'est ce que fait v3x — elle fait autorité : la reconstruire reviendrait à
+deviner ce que le tracker vient de dire. Mais cette adresse **porte la clé
+d'API**. Elle est donc retirée de la réponse avant toute mise en cache et avant
+d'atteindre le navigateur, qui ne reçoit qu'un identifiant opaque à repasser au
+proxy local `/api/torrent`. La correspondance ne vit qu'en mémoire ; après un
+redémarrage, Trouveur demande de relancer la recherche plutôt que de fabriquer
+une adresse au hasard.
+
+### Tester
+
+Le bouton **Tester la connexion** du bloc Tracker déroule trois étapes —
+interrogation (`t=caps`), lecture de la réponse Torznab, recherche d'essai.
+« Aucun torrent trouvé » peut venir de l'adresse, de la clé, de son scope ou du
+catalogue : ces cas demandent des gestes différents.
+
 ## Quand TMDB tombe sur une page
 
 TMDB rend par moments `HTTP 500` sur **une page précise** de `/discover/movie`,

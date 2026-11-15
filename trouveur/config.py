@@ -17,16 +17,21 @@ DEFAULTS: dict[str, Any] = {
         "include_adult": False,
     },
     "tracker": {
-        # Indexeur Torznab. tr4ker expose ce standard sur /api, et la recherche
-        # de films y accepte un tmdbid : pas de rapprochement par titre.
+        # Indexeur Torznab. tr4ker et v3x exposent tous deux ce standard, et
+        # leur recherche de films accepte un tmdbid : pas de rapprochement par
+        # titre. Un seul tracker est actif a la fois.
         "enabled": False,
-        "name": "tr4ker.net",
-        "base_url": "https://tr4ker.net",
-        "api_path": "/api",
+        # Profil : "tr4ker.net", "v3x.club", ou "torznab" pour un indexeur
+        # quelconque, a decrire alors entierement ici.
+        #
+        # Nom, adresse, chemin d'API, authentification et chemin de
+        # telechargement viennent du profil et ne figurent donc pas ci-dessous.
+        # Les y ecrire les remplace -- mais ils survivraient alors a un
+        # changement de tracker, ce qui est rarement voulu.
+        "profile": "tr4ker.net",
         "api_key": "",
-        # "header" : la cle part dans header_name. "query" : dans ?apikey=
-        "auth": "header",
-        "header_name": "X-Api-Key",
+        # Categorie Torznab des films. 2000 couvre aussi ses sous-categories
+        # (2040 « Movies/HD », etc.).
         "movie_category": "2000",
         "limit": 100,
         "timeout": 15,
