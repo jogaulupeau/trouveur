@@ -19,6 +19,7 @@ const state = {
   prevScreen: 'soir',       // où revenir en quittant les réglages
   providerList: [],         // plateformes de la région (Plex en tête, s'il est connecté)
   certifications: [],       // classements d'âge de la région, du plus ouvert au plus strict
+  tv: { enabled: false, name: '' },   // lecteur de Home Assistant choisi pour lancer un film
   mode: 'decouverte',       // decouverte | foryou | recherche | similaires | watchlist | seen | ignored
   searchQuery: '',
   similarTo: null,      // {id, title} quand on explore les films proches
@@ -59,7 +60,7 @@ function trierTorrents(torrents) {
 
 /** Un billet. Avec `action.href` c'est un lien, avec `action.faire` un bouton,
  *  sans action il informe seulement. */
-function billet({ petit, grand, action, info }) {
+function billet({ petit, grand, action, info, lien }) {
   const racine = action && action.href
     ? el('a', 'stub') : action ? el('div', 'stub') : el('div', 'stub is-info');
   if (action && action.href) {
@@ -70,6 +71,15 @@ function billet({ petit, grand, action, info }) {
   const corps = el('span', 'stub-main');
   corps.appendChild(el('small', null, petit));
   corps.appendChild(el('strong', null, grand));
+  // Un second geste, discret : seulement quand le premier est un bouton, un lien
+  // ne pouvant pas en contenir un autre.
+  if (lien && action && !action.href) {
+    const second = el('a', 'stub-link', lien.texte);
+    second.href = lien.href;
+    second.target = '_blank';
+    second.rel = 'noopener noreferrer';
+    corps.appendChild(second);
+  }
   racine.appendChild(corps);
   if (action) {
     if (action.href) {
@@ -83,6 +93,100 @@ function billet({ petit, grand, action, info }) {
   }
   if (info) racine.title = info;
   return racine;
+}
+
+/** Le billet Plex. Quand une télé est choisie, « Lancer » en est le geste
+ *  principal et le lien Plex reste à côté ; sinon le lien est le seul geste. */
+function billetPlex(movie, plex, complet) {
+  const detail = [
+    plex.resolution,
+    plex.codec ? plex.codec.toUpperCase() : null,
+    complet && plex.container ? plex.container.toUpperCase() : null,
+    complet && plex.size ? formatSize(plex.size) : null,
+  ].filter(Boolean).join(', ');
+  const base = { petit: 'Sur ton Plex, prêt maintenant', grand: detail || 'Dans ta bibliothèque' };
+  if (state.tv.enabled) {
+    return billet({
+      ...base,
+      action: { texte: 'Lancer', faire: (bouton) => lancerSurTele(movie, bouton) },
+      info: `Lancer sur ${state.tv.name || 'la télé'}`,
+      lien: plex.url ? { href: plex.url, texte: 'Ouvrir dans Plex' } : null,
+    });
+  }
+  return billet({
+    ...base,
+    action: plex.url ? { href: plex.url, texte: 'Ouvrir', externe: true } : null,
+  });
+}
+
+/** La ligne qui rend compte du lancement, juste sous les billets. */
+function noteLancement(bouton) {
+  const zone = bouton.closest('.tickets, .soir-tickets');
+  let note = zone.nextElementSibling;
+  if (!note || !note.classList.contains('launch-note')) {
+    note = el('p', 'launch-note');
+    note.setAttribute('role', 'status');
+    zone.after(note);
+  }
+  return note;
+}
+
+/** Demande à Home Assistant de lancer le film sur la télé choisie.
+ *
+ *  Si quelqu'un regarde déjà quelque chose, le serveur ne remplace rien sans
+ *  confirmation : le bouton devient « Remplacer » et c'est le clic suivant qui
+ *  confirme. Et « lancement demandé » n'est pas « film en cours » : Home
+ *  Assistant accepte la commande sans pouvoir garantir ce que l'appareil en
+ *  fait, d'où le titre rappelé à chaque fois. */
+async function lancerSurTele(movie, bouton) {
+  const confirmer = bouton.dataset.confirmer === '1';
+  const note = noteLancement(bouton);
+  const nom = state.tv.name || 'la télé';
+  bouton.disabled = true;
+  bouton.textContent = 'Envoi…';
+  note.className = 'launch-note';
+  note.textContent = '';
+  delete bouton.dataset.confirmer;
+
+  const rendre = (delai) => setTimeout(() => {
+    bouton.disabled = false;
+    bouton.textContent = 'Lancer';
+  }, delai);
+
+  try {
+    const r = await api('/api/launch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: movie.id, title: movie.title, year: movie.year, confirm: confirmer }),
+    });
+    if (r.status === 'busy') {
+      bouton.dataset.confirmer = '1';
+      bouton.disabled = false;
+      bouton.textContent = 'Remplacer';
+      note.textContent = `${r.name} lit déjà ${r.title ? `« ${r.title} »` : 'quelque chose'}. `
+        + `Remplacer par « ${r.film} » ? Touche « Remplacer » pour confirmer.`;
+      // Sans suite, on redevient prudent : une confirmation ne doit pas traîner.
+      setTimeout(() => {
+        if (bouton.dataset.confirmer === '1') { delete bouton.dataset.confirmer; bouton.textContent = 'Lancer'; }
+      }, 10000);
+      return;
+    }
+    note.classList.add('is-ok');
+    if (r.method === 'app') {
+      note.textContent = `Plex ouvert sur ${r.name}. Cherche « ${r.film} » dans Plex.`;
+    } else {
+      note.textContent = `Lancement demandé à ${r.name} : « ${r.film} ».`;
+    }
+    bouton.textContent = 'Demandé';
+    rendre(6000);
+  } catch (error) {
+    note.classList.add('is-error');
+    const raison = String(error.message).trim().replace(/[.!?]*$/, '.');
+    note.textContent = `Impossible de lancer sur ${nom} : ${raison} `
+      + `Cherche « ${movie.title} » dans Plex sur la télé.`;
+    bouton.disabled = false;
+    bouton.textContent = 'Lancer';
+  }
 }
 
 /** Le billet « à télécharger ». Il dit combien de versions existent et ouvre
@@ -180,6 +284,7 @@ async function bootstrap() {
     data.genres.forEach((g) => state.genres.set(g.id, g.name));
     buildGenreChips(data.genres);
     state.certifications = data.certifications || [];
+    state.tv = data.tv || { enabled: false, name: '' };
     buildCertifications();
     await buildProviders();
     renderSeenCount();
@@ -778,6 +883,8 @@ function bindEvents() {
     $('set-tracker-url').value = '';
     decrireProfilTracker();
   });
+  $('set-tv-method').addEventListener('change', aideLancement);
+  $('tv-inspect').addEventListener('click', inspecterTele);
   $('deluge-test').addEventListener('click', delugeTest);
   $('tracker-test').addEventListener('click', trackerTest);
   ROLES_CERT.forEach((role) => {
@@ -1483,17 +1590,7 @@ function paintSheetWhere(movie) {
   const notes = [];
 
   if (plex) {
-    const detail = [
-      plex.resolution,
-      plex.codec ? plex.codec.toUpperCase() : null,
-      plex.container ? plex.container.toUpperCase() : null,
-      plex.size ? formatSize(plex.size) : null,
-    ].filter(Boolean).join(', ');
-    billets.appendChild(billet({
-      petit: 'Sur ton Plex, prêt maintenant',
-      grand: detail || 'Dans ta bibliothèque',
-      action: plex.url ? { href: plex.url, texte: 'Ouvrir', externe: true } : null,
-    }));
+    billets.appendChild(billetPlex(movie, plex, true));
     if (plex.view_count) {
       notes.push(`Déjà lu ${plex.view_count} fois sur Plex.`);
     }
@@ -1867,6 +1964,7 @@ async function loadSettings() {
   $('set-tracker-key').placeholder = s.tracker.has_key ? '•••••••• (enregistrée)' : '';
   $('set-tracker-key').value = '';
 
+  await remplirTele(s.homeassistant);
   $('set-plex-sync').checked = s.plex.sync_watched;
   $('plex-state').textContent = s.plex.has_token
     ? 'Connecté — ' + s.plex.base_url
@@ -1893,6 +1991,104 @@ async function loadSettings() {
   await buildServiceChoices(s.streaming.my_services);
 }
 
+/* ---------------------------------- télé ---------------------------------- */
+
+const AIDE_LANCEMENT = {
+  plex: 'Demande à Home Assistant de lancer le film par son titre, dans sa bibliothèque Plex. '
+    + 'Il faut que l’intégration Plex de Home Assistant soit installée et connectée à ton serveur.',
+  lien: 'Ouvre l’application Plex directement sur le film, par un lien. À essayer : '
+    + 'Plex doit être installé sur le boîtier, et tous les modèles ne suivent pas le lien.',
+  app: 'Ouvre l’application Plex sans choisir le film : Trouveur affiche alors le titre à chercher.',
+};
+
+function aideLancement() {
+  $('tv-method-help').textContent = AIDE_LANCEMENT[$('set-tv-method').value] || '';
+}
+
+/** Remplit le bloc « Télé » avec les lecteurs que Home Assistant donne lui-même. */
+async function remplirTele(reglage) {
+  const choix = $('set-tv-player');
+  choix.textContent = '';
+  choix.appendChild(new Option('Aucun', ''));
+  $('tv-state').textContent = '';
+  $('set-tv-method').value = reglage.method;
+  aideLancement();
+
+  const etat = $('tv-availability');
+  let data = { available: reglage.available, players: [] };
+  if (reglage.available) {
+    try { data = await api('/api/ha/players'); } catch (error) { data.error = error.message; }
+  }
+  if (!reglage.available) {
+    etat.textContent = 'Home Assistant n’est pas joignable depuis ici. Dans l’add-on l’accès est '
+      + 'accordé automatiquement ; hors add-on, il faut TROUVEUR_HA_URL et TROUVEUR_HA_TOKEN.';
+    etat.className = 'settings-state is-error';
+  } else if (data.error) {
+    etat.textContent = data.error;
+    etat.className = 'settings-state is-error';
+  } else {
+    etat.textContent = `${data.players.length} lecteur${data.players.length > 1 ? 's' : ''} trouvé${data.players.length > 1 ? 's' : ''} dans Home Assistant.`;
+    etat.className = 'settings-state is-ok';
+  }
+
+  data.players.forEach((p) => {
+    const option = new Option(p.name, p.entity_id);
+    option.dataset.name = p.name;
+    choix.appendChild(option);
+  });
+  // Un lecteur choisi autrefois mais absent de la liste ne doit pas disparaître en silence.
+  if (reglage.player && !data.players.some((p) => p.entity_id === reglage.player)) {
+    const option = new Option(`${reglage.player_name || reglage.player} (introuvable)`, reglage.player);
+    option.dataset.name = reglage.player_name || '';
+    choix.appendChild(option);
+  }
+  choix.value = reglage.player || '';
+  choix.disabled = !reglage.available;
+  $('tv-inspect').disabled = !reglage.available;
+}
+
+function lireTele() {
+  const choix = $('set-tv-player');
+  const option = choix.selectedOptions[0];
+  return {
+    player: choix.value,
+    player_name: choix.value && option ? (option.dataset.name || option.textContent) : '',
+    method: $('set-tv-method').value,
+  };
+}
+
+/** Ce que Home Assistant dit de l'appareil choisi : de quoi savoir à qui on parle. */
+async function inspecterTele() {
+  const zone = $('tv-state');
+  zone.textContent = '';
+  const entite = $('set-tv-player').value;
+  if (!entite) { zone.appendChild(el('p', 'settings-state', 'Choisis d’abord un lecteur.')); return; }
+  const bouton = $('tv-inspect');
+  bouton.disabled = true;
+  try {
+    const r = await api(`/api/ha/player?entity=${encodeURIComponent(entite)}`);
+    const liste = el('dl', 'technique tv-facts');
+    const ligne = (nom, valeur) => {
+      if (valeur == null || valeur === '' || (Array.isArray(valeur) && !valeur.length)) return;
+      liste.appendChild(el('dt', null, nom));
+      liste.appendChild(el('dd', null, Array.isArray(valeur) ? valeur.join(', ') : String(valeur)));
+    };
+    const a = r.attributes || {};
+    ligne('État', r.state);
+    ligne('Type', a.device_class);
+    ligne('Application en cours', a.app_name || a.app_id);
+    ligne('Source', a.source);
+    ligne('Sources proposées', a.source_list);
+    ligne('Média en cours', a.media_title);
+    ligne('Fonctions (code)', a.supported_features);
+    zone.appendChild(liste);
+  } catch (error) {
+    zone.appendChild(el('p', 'settings-state is-error', error.message));
+  } finally {
+    bouton.disabled = false;
+  }
+}
+
 /** Résumé des services en tête des réglages : ce qui est en place, d'un coup d'œil.
  *  « Configuré » ne veut pas dire « répond » : le test reste au bouton de chaque bloc. */
 function renderServiceStatus(s) {
@@ -1901,6 +2097,8 @@ function renderServiceStatus(s) {
       texte: s.tmdb.has_key ? 'Clé enregistrée' : 'Clé manquante' },
     { cible: 'set-plex', nom: 'Plex', ok: Boolean(s.plex.has_token),
       texte: s.plex.has_token ? 'Serveur connecté' : 'Aucun serveur' },
+    { cible: 'set-tv', nom: 'Télé', ok: Boolean(s.homeassistant.player),
+      texte: s.homeassistant.player ? (s.homeassistant.player_name || 'Choisie') : 'Aucune' },
     { cible: 'set-tracker', nom: s.tracker.name || 'Tracker',
       ok: s.tracker.enabled && s.tracker.has_key,
       texte: s.tracker.enabled ? (s.tracker.has_key ? 'Activé' : 'Clé manquante') : 'Désactivé' },
@@ -1957,6 +2155,7 @@ async function saveSettings(event) {
         },
         streaming: { my_services: [...servicesChoisis] },
         plex: { sync_watched: $('set-plex-sync').checked },
+        homeassistant: lireTele(),
         deluge: {
           enabled: $('set-deluge-enabled').checked,
           base_url: $('set-deluge-url').value.trim(),

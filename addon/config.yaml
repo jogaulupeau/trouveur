@@ -1,5 +1,5 @@
 name: Trouveur
-version: "1.7.1"
+version: "1.8.0"
 slug: trouveur
 description: >-
   Propositions de films selon vos critères, avec disponibilité sur votre
@@ -24,6 +24,12 @@ panel_title: Trouveur
 # d'exiger une session Home Assistant valide — l'add-on n'est pas ouvert au
 # reseau pour autant.
 panel_admin: false
+
+# Lancer un film sur une télé : l'add-on appelle Home Assistant avec le jeton que
+# celui-ci lui donne (rien à copier). Ce jeton permet d'appeler les services de
+# Home Assistant ; Trouveur n'envoie que la commande de lecture, vers le seul
+# lecteur choisi dans les Réglages, et seulement quand on clique sur « Lancer ».
+homeassistant_api: true
 
 # Seule concession au système de fichiers de Home Assistant : le dossier
 # partagé, en lecture seule, pour reprendre des listes existantes au premier

@@ -1,0 +1,195 @@
+"""Pont vers Home Assistant : lister les lecteurs, lancer un film sur l'un d'eux.
+
+Dans l'add-on, Home Assistant fournit un jeton a l'add-on (SUPERVISOR_TOKEN) et
+l'API est joignable sur http://supervisor/core/api : rien a copier. Hors add-on,
+pour essayer en local, TROUVEUR_HA_URL et TROUVEUR_HA_TOKEN jouent ce role.
+
+Rien n'est ecrit en dur sur l'installation de quelqu'un : le lecteur vise est un
+reglage, choisi dans la liste que Home Assistant donne lui-meme.
+
+Trois facons de lancer, au choix, parce qu'elles ne conviennent pas au meme
+materiel et qu'on ne peut pas deviner de loin laquelle convient :
+
+  plex   l'integration Plex de Home Assistant (Chromecast) : play_media avec un
+         identifiant « plex://{...} » qui nomme la bibliotheque et le titre.
+  lien   un lien profond vers le film, ouvert dans l'application Plex
+         (Android TV).
+  app    ouvre seulement l'application Plex (Android TV). Ne choisit pas le film.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+from typing import Any
+
+from .http_client import HttpError, get_json, post_json, redact, register_secret
+
+METHODES = ("plex", "lien", "app")
+PLEX_ANDROID = "com.plexapp.android"
+URL_SUPERVISEUR = "http://supervisor/core/api"
+
+# Etats ou quelqu'un regarde peut-etre quelque chose : on demande avant de remplacer.
+OCCUPE = ("playing", "paused", "buffering")
+
+ENTITE = re.compile(r"^media_player\.[a-z0-9_]{1,80}$")
+
+# Ce qu'on laisse voir d'un lecteur : de quoi comprendre ce qu'il sait faire,
+# sans rien de superflu.
+ATTRIBUTS_VISIBLES = (
+    "friendly_name", "device_class", "supported_features", "app_name", "app_id",
+    "media_title", "source", "source_list",
+)
+
+
+class HomeAssistantError(RuntimeError):
+    pass
+
+
+def _acces() -> tuple[str, str]:
+    """(adresse, jeton), ou deux chaines vides quand Home Assistant n'est pas la."""
+    jeton = os.environ.get("SUPERVISOR_TOKEN") or os.environ.get("TROUVEUR_HA_TOKEN") or ""
+    adresse = os.environ.get("TROUVEUR_HA_URL") or (
+        URL_SUPERVISEUR if os.environ.get("SUPERVISOR_TOKEN") else "")
+    return adresse.rstrip("/"), jeton
+
+
+def disponible() -> bool:
+    adresse, jeton = _acces()
+    return bool(adresse and jeton)
+
+
+def entite_valide(valeur: Any) -> bool:
+    return isinstance(valeur, str) and bool(ENTITE.match(valeur))
+
+
+class HomeAssistant:
+    def __init__(self, config: dict[str, Any]):
+        bloc = config.get("homeassistant") or {}
+        self.player: str = bloc.get("player") if entite_valide(bloc.get("player")) else ""
+        self.player_name: str = str(bloc.get("player_name") or "")[:80]
+        self.method: str = bloc.get("method") if bloc.get("method") in METHODES else "plex"
+        self._base, self._jeton = _acces()
+        register_secret(self._jeton)
+
+    @property
+    def available(self) -> bool:
+        return bool(self._base and self._jeton)
+
+    @property
+    def ready(self) -> bool:
+        return self.available and bool(self.player)
+
+    # -- transport ---------------------------------------------------------
+
+    def _entetes(self) -> dict[str, str]:
+        return {"Authorization": "Bearer " + self._jeton}
+
+    def _get(self, chemin: str) -> Any:
+        if not self.available:
+            raise HomeAssistantError(
+                "Home Assistant n'est pas joignable d'ici. Dans l'add-on l'acces est "
+                "automatique ; en local, TROUVEUR_HA_URL et TROUVEUR_HA_TOKEN le donnent.")
+        try:
+            return get_json(self._base + chemin, headers=self._entetes(), timeout=10)
+        except HttpError as exc:
+            raise HomeAssistantError(_message(exc)) from exc
+
+    def _post(self, chemin: str, donnees: dict[str, Any]) -> Any:
+        try:
+            return post_json(
+                self._base + chemin, headers=self._entetes(), timeout=20,
+                body=json.dumps(donnees).encode("utf-8"))
+        except HttpError as exc:
+            raise HomeAssistantError(_message(exc)) from exc
+
+    # -- lecture -----------------------------------------------------------
+
+    def players(self) -> list[dict[str, Any]]:
+        etats = self._get("/states") or []
+        liste = []
+        for etat in etats:
+            entite = str(etat.get("entity_id") or "")
+            if not entite.startswith("media_player."):
+                continue
+            nom = (etat.get("attributes") or {}).get("friendly_name") or entite
+            liste.append({"entity_id": entite, "name": str(nom), "state": etat.get("state")})
+        return sorted(liste, key=lambda p: p["name"].lower())
+
+    def describe(self, entite: str | None = None) -> dict[str, Any]:
+        """Ce que le lecteur annonce savoir faire, tel que Home Assistant le dit."""
+        entite = entite or self.player
+        if not entite_valide(entite):
+            raise HomeAssistantError("Aucun lecteur choisi.")
+        etat = self._get("/states/" + entite) or {}
+        attributs = etat.get("attributes") or {}
+        visibles = {cle: attributs[cle] for cle in ATTRIBUTS_VISIBLES if cle in attributs}
+        if isinstance(visibles.get("source_list"), list):
+            visibles["source_list"] = visibles["source_list"][:30]
+        return {"entity_id": entite, "state": etat.get("state"), "attributes": visibles}
+
+    # -- lancement ---------------------------------------------------------
+
+    def commande(self, film: dict[str, Any], machine: str | None) -> dict[str, Any]:
+        """Les donnees envoyees a media_player.play_media, selon la methode."""
+        if self.method == "plex":
+            if not film.get("library"):
+                raise HomeAssistantError(
+                    "Plex n'a pas dit dans quelle bibliotheque est ce film : "
+                    "relis la bibliotheque dans les Reglages.")
+            recherche: dict[str, Any] = {"library_name": film["library"], "title": film["title"]}
+            if film.get("year"):
+                recherche["year"] = film["year"]
+            return {
+                "entity_id": self.player,
+                "media_content_type": "movie",
+                "media_content_id": "plex://" + json.dumps(recherche, ensure_ascii=False),
+            }
+        if self.method == "lien":
+            if not (machine and film.get("rating_key")):
+                raise HomeAssistantError(
+                    "Il manque l'identifiant du serveur ou du film pour faire le lien.")
+            return {
+                "entity_id": self.player,
+                "media_content_type": "url",
+                "media_content_id": "plex://server://%s/com.plexapp.plugins.library"
+                                    "/library/metadata/%s" % (machine, film["rating_key"]),
+            }
+        return {
+            "entity_id": self.player,
+            "media_content_type": "app",
+            "media_content_id": PLEX_ANDROID,
+        }
+
+    def launch(self, film: dict[str, Any], machine: str | None,
+               confirm: bool = False) -> dict[str, Any]:
+        if not self.ready:
+            raise HomeAssistantError("Aucune télé choisie dans les Réglages.")
+        etat = self._get("/states/" + self.player) or {}
+        statut = etat.get("state")
+        attributs = etat.get("attributes") or {}
+        nom = self.player_name or attributs.get("friendly_name") or self.player
+
+        if statut == "unavailable":
+            raise HomeAssistantError(
+                "%s ne répond pas à Home Assistant (état « indisponible »)." % nom)
+        # Quelqu'un regarde peut-etre : on ne remplace pas sans qu'on nous le dise.
+        if statut in OCCUPE and not confirm:
+            return {"status": "busy", "name": nom, "state": statut,
+                    "title": attributs.get("media_title")}
+
+        self._post("/services/media_player/play_media", self.commande(film, machine))
+        return {"status": "ok", "name": nom, "method": self.method}
+
+
+def _message(exc: HttpError) -> str:
+    """Le message de Home Assistant, quand il en donne un, sans jamais le jeton."""
+    texte = ""
+    try:
+        texte = str(json.loads(exc.body).get("message") or "")
+    except (ValueError, AttributeError, TypeError):
+        texte = (exc.body or "").strip()
+    if not texte:
+        texte = str(exc)
+    return redact(texte)[:400]

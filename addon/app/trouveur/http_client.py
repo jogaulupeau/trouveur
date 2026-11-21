@@ -87,8 +87,10 @@ def post_json(
     url: str,
     headers: dict[str, str] | None = None,
     timeout: int = 15,
+    body: bytes | None = None,
 ) -> Any:
-    raw = _fetch(url, headers, timeout, accept="application/json", method="POST")
+    raw = _fetch(url, headers, timeout, accept="application/json", method="POST",
+                 body=body)
     text = raw.decode("utf-8", "replace").strip()
     if not text:
         return None
@@ -105,6 +107,7 @@ def _fetch(
     accept: str,
     ssl_context: Any = None,
     method: str = "GET",
+    body: bytes | None = None,
 ) -> bytes:
     """Un GET est rejoue si l'echec a l'air passager.
 
@@ -116,7 +119,7 @@ def _fetch(
 
     for essai in range(essais):
         try:
-            return _fetch_une_fois(url, headers, timeout, accept, ssl_context, method)
+            return _fetch_une_fois(url, headers, timeout, accept, ssl_context, method, body)
         except HttpError as exc:
             dernier = exc
             if essai == essais - 1 or not _transitoire(exc.status):
@@ -136,15 +139,18 @@ def _fetch_une_fois(
     accept: str,
     ssl_context: Any = None,
     method: str = "GET",
+    body: bytes | None = None,
 ) -> bytes:
     request_headers = {
         "User-Agent": USER_AGENT,
         "Accept": accept,
     }
+    if body is not None:
+        request_headers["Content-Type"] = "application/json"
     if headers:
         request_headers.update(headers)
 
-    data = b"" if method == "POST" else None
+    data = body if body is not None else (b"" if method == "POST" else None)
     request = urllib.request.Request(
         url, data=data, headers=request_headers, method=method
     )

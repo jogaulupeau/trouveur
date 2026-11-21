@@ -283,6 +283,33 @@
           <p class="settings-state" id="plex-refresh-state"></p>
         </section>
 
+        <section class="settings-block" id="set-tv">
+          <h4>Télé</h4>
+          <p class="settings-help">
+            Lancer un film de ton serveur Plex sur un lecteur de Home Assistant :
+            télé, projecteur, boîtier. Rien n'est envoyé tant que tu ne cliques
+            pas sur « Lancer ».
+          </p>
+          <p class="settings-state" id="tv-availability"></p>
+          <label class="settings-field">
+            <span>Lecteur</span>
+            <select id="set-tv-player"><option value="">Aucun</option></select>
+          </label>
+          <label class="settings-field">
+            <span>Façon de lancer</span>
+            <select id="set-tv-method">
+              <option value="plex">Chromecast, par l'intégration Plex de Home Assistant</option>
+              <option value="lien">Android TV, par un lien vers l'application Plex</option>
+              <option value="app">Android TV, ouvrir seulement l'application Plex</option>
+            </select>
+          </label>
+          <p class="settings-help settings-sub" id="tv-method-help"></p>
+          <button type="button" class="btn btn-ghost settings-sync" id="tv-inspect">
+            Voir ce que l'appareil annonce
+          </button>
+          <div id="tv-state"></div>
+        </section>
+
         <section class="settings-block" id="set-services">
           <h4>Mes abonnements</h4>
           <p class="settings-help">

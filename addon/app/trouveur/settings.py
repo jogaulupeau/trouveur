@@ -20,6 +20,7 @@ from . import config as config_module
 from . import certificates
 from . import tracker as tracker_module
 from . import plex_auth
+from . import homeassistant as ha_module
 
 # Les demandes de connexion Plex en cours, le temps que l'utilisateur approuve.
 _pins: dict[int, dict[str, Any]] = {}
@@ -78,6 +79,13 @@ def current() -> dict[str, Any]:
             "add_paused": bool(deluge.get("add_paused", False)),
             "download_location": deluge.get("download_location", ""),
             "label": deluge.get("label", ""),
+        },
+        "homeassistant": {
+            "available": ha_module.disponible(),
+            "player": (config.get("homeassistant") or {}).get("player", ""),
+            "player_name": (config.get("homeassistant") or {}).get("player_name", ""),
+            "method": (config.get("homeassistant") or {}).get("method", "plex"),
+            "methods": list(ha_module.METHODES),
         },
         "plex": {
             "enabled": bool(plex.get("enabled")),
@@ -154,6 +162,17 @@ def update(payload: dict[str, Any]) -> dict[str, Any]:
     _pose(bloc, "client_key_password", deluge.get("client_key_password"), secret=True)
     _pose(bloc, "verify_tls", deluge.get("verify_tls"))
     _pose(bloc, "add_paused", deluge.get("add_paused"))
+
+    tele = payload.get("homeassistant")
+    if isinstance(tele, dict):
+        bloc = config.setdefault("homeassistant", {})
+        if "player" in tele:
+            # Vide = « aucune » ; sinon une entite media_player bien formee.
+            if tele["player"] == "" or ha_module.entite_valide(tele["player"]):
+                bloc["player"] = tele["player"]
+                bloc["player_name"] = str(tele.get("player_name") or "")[:80]
+        if tele.get("method") in ha_module.METHODES:
+            bloc["method"] = tele["method"]
 
     config_module.save(config)
     return current()

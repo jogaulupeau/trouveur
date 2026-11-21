@@ -29,6 +29,7 @@ from trouveur import cache, certificates, config as config_module, seen
 from trouveur.http_client import HttpError
 from trouveur.certificates import CertificateError
 from trouveur.deluge import Deluge, DelugeError
+from trouveur.homeassistant import HomeAssistant, HomeAssistantError
 from trouveur.plex import Plex, PlexError
 from trouveur.plex_auth import PlexAuthError
 from trouveur.reco import ForYou
@@ -44,6 +45,7 @@ TMDB: Tmdb
 TRACKER: Tracker
 PLEX: Plex
 DELUGE: Deluge
+HA: HomeAssistant
 FORYOU: ForYou
 
 
@@ -53,12 +55,13 @@ def reload_services() -> None:
     Sans cela il faudrait redemarrer pour qu'une cle saisie dans l'interface
     prenne effet — ce qui, dans un add-on sans terminal, serait penible.
     """
-    global CONFIG, TMDB, TRACKER, PLEX, DELUGE, FORYOU
+    global CONFIG, TMDB, TRACKER, PLEX, DELUGE, HA, FORYOU
     CONFIG = config_module.load()
     TMDB = Tmdb(CONFIG)
     TRACKER = Tracker(CONFIG)
     PLEX = Plex(CONFIG)
     DELUGE = Deluge(CONFIG)
+    HA = HomeAssistant(CONFIG)
     FORYOU = ForYou(TMDB)
 
     if not config_module.is_configured(CONFIG):
@@ -110,6 +113,9 @@ class Handler(BaseHTTPRequestHandler):
                 corps = self._read_json_body()
                 self._send_json(_envoyer_vers_deluge(corps))
                 return
+            if chemin == "/api/launch":
+                self._send_json(_lancer_sur_tele(self._read_json_body()))
+                return
             if chemin == "/api/import":
                 corps = self._read_json_body()
                 store = _store_for("/api/" + str(corps.get("list") or ""))
@@ -139,6 +145,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": str(exc)}, status=502)
             return
         except DelugeError as exc:
+            self._send_json({"error": str(exc)}, status=502)
+            return
+        except HomeAssistantError as exc:
             self._send_json({"error": str(exc)}, status=502)
             return
         except CertificateError as exc:
@@ -235,6 +244,11 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(TRACKER.test())
             elif path == "/api/settings":
                 self._send_json(settings_module.current())
+            elif path == "/api/ha/players":
+                self._send_json(_lecteurs_ha())
+            elif path == "/api/ha/player":
+                # L'entite choisie dans la liste, meme avant d'avoir enregistre.
+                self._send_json(HA.describe(_one(params, "entity", "") or None))
             elif path == "/api/plex/login/poll":
                 pin = _int(params, "id")
                 if not pin:
@@ -292,6 +306,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": str(exc)}, status=502)
         except DelugeError as exc:
             self._send_json({"error": str(exc)}, status=502)
+        except HomeAssistantError as exc:
+            self._send_json({"error": str(exc)}, status=502)
 
     # -- points d'entree ---------------------------------------------------
 
@@ -322,6 +338,7 @@ class Handler(BaseHTTPRequestHandler):
             "ignored": sorted(seen.IGNORED.ids()),
             "plex": {"enabled": PLEX.configured, "sync": PLEX.sync_watched},
             "deluge": {"enabled": DELUGE.configured},
+            "tv": {"enabled": HA.ready, "name": HA.player_name, "method": HA.method},
             "configured": config_module.is_configured(CONFIG),
         }
 
@@ -725,6 +742,43 @@ def _float(params: dict[str, list[str]], key: str) -> float | None:
         return None
 
 
+def _lecteurs_ha() -> dict[str, Any]:
+    """Les lecteurs que Home Assistant propose. Une panne n'est pas une erreur ici :
+    l'ecran de reglages doit pouvoir dire pourquoi la liste est vide."""
+    try:
+        return {"available": HA.available, "players": HA.players()}
+    except HomeAssistantError as exc:
+        return {"available": HA.available, "players": [], "error": str(exc)}
+
+
+def _lancer_sur_tele(corps: dict[str, Any]) -> dict[str, Any]:
+    """Lance sur la tele choisie un film qui est dans la bibliotheque Plex.
+
+    Le film est retrouve cote serveur, avec le titre et la bibliotheque tels que
+    Plex les connait : ce que la page envoie ne sert qu'a l'identifier.
+    """
+    film_id = corps.get("id")
+    if not isinstance(film_id, int) or film_id <= 0:
+        raise ValueError("Film manquant")
+    if not PLEX.configured:
+        raise HomeAssistantError(
+            "Plex n'est pas configuré : impossible de retrouver le film à lancer.")
+    annee = corps.get("year")
+    entree = PLEX.lookup(
+        tmdb_id=film_id, title=str(corps.get("title") or ""),
+        year=annee if isinstance(annee, int) else None)
+    if not entree:
+        raise HomeAssistantError("Ce film n'est pas dans ta bibliothèque Plex.")
+    film = {
+        "title": entree["title"], "year": entree["year"],
+        "library": entree.get("library", ""), "rating_key": entree.get("rating_key", ""),
+    }
+    machine = PLEX.machine_id() if HA.method == "lien" else None
+    resultat = HA.launch(film, machine, confirm=bool(corps.get("confirm")))
+    resultat["film"] = entree["title"]
+    return resultat
+
+
 def _certification(params: dict[str, list[str]]) -> str | None:
     """Classification maximale demandee, ou None.
 
@@ -762,7 +816,7 @@ def main() -> int:
         from trouveur import plex_setup
         return plex_setup.run()
 
-    global CONFIG, TMDB, TRACKER, PLEX, DELUGE, FORYOU
+    global CONFIG, TMDB, TRACKER, PLEX, DELUGE, HA, FORYOU
     try:
         CONFIG = config_module.load()
     except config_module.ConfigError as exc:
@@ -773,6 +827,7 @@ def main() -> int:
     TRACKER = Tracker(CONFIG)
     PLEX = Plex(CONFIG)
     DELUGE = Deluge(CONFIG)
+    HA = HomeAssistant(CONFIG)
     FORYOU = ForYou(TMDB)
 
     if not config_module.is_configured(CONFIG):

@@ -238,6 +238,49 @@ n'était pas le cas, l'accent reste ambre et rien d'autre ne change.
 
 Sur téléphone la navigation passe en barre du bas, à portée de pouce.
 
+## Lancer sur la télé
+
+Quand un film est dans ta bibliothèque Plex, le billet Plex a un bouton **Lancer**
+(sur « Ce soir » comme dans la fiche), et « Ouvrir dans Plex » reste à côté. Le
+bouton demande à **Home Assistant** de lire le film sur un lecteur choisi dans
+**Réglages → Télé**. Trouveur ne fait rien d'autre que cette commande, et seulement
+au clic.
+
+Le lecteur est un réglage, pris dans la liste que Home Assistant donne lui-même :
+aucun nom d'appareil n'est écrit dans le code. Dans l'add-on, l'accès à Home
+Assistant est accordé par `homeassistant_api` (un jeton fourni par Home Assistant,
+rien à copier). Hors add-on, `TROUVEUR_HA_URL` et `TROUVEUR_HA_TOKEN` jouent ce
+rôle, pour essayer en local.
+
+Trois façons de lancer, parce qu'elles ne conviennent pas au même matériel et
+qu'on ne peut pas deviner de loin laquelle convient :
+
+| | Ce qui part vers `media_player.play_media` | Prérequis |
+|---|---|---|
+| **plex** (Chromecast) | `plex://{"library_name": …, "title": …, "year": …}`, type `movie` | l'intégration Plex de Home Assistant, connectée à ton serveur |
+| **lien** (Android TV) | un lien profond vers le film, type `url` | l'application Plex sur le boîtier |
+| **app** (Android TV) | l'identifiant de l'application Plex, type `app` | l'application Plex ; **ne choisit pas le film** |
+
+Le titre et la bibliothèque viennent **de Plex**, relus côté serveur, pas de ce que
+la page envoie : c'est ce que l'intégration Plex sait retrouver. La page ne sert qu'à
+identifier le film.
+
+Trois garde-fous :
+
+- **Si quelqu'un regarde déjà**, le serveur ne remplace rien sans confirmation :
+  le bouton devient « Remplacer ». Cela ne vaut que pour les lecteurs qui
+  annoncent leur état (un Chromecast le fait, l'intégration Android TV Remote ne
+  le fait pas).
+- **Un lecteur indisponible** est signalé par son nom, sans rien envoyer.
+- **Une erreur de Home Assistant** s'affiche telle quelle, jamais avec le jeton,
+  suivie du titre à chercher dans Plex : c'est le plan B.
+
+« Lancement demandé » n'est pas « film en cours » : Home Assistant accepte la
+commande sans pouvoir garantir ce que l'appareil en fait. Le lien profond de la
+méthode **lien** et le choix du film précis n'ont pas été vérifiés sur un vrai
+appareil : ils s'essaient chez soi, et la réponse de Home Assistant s'affiche
+telle quelle quand ça ne passe pas.
+
 ## Public
 
 Un quatrième mot dans la phrase de « Ce soir » et un champ **Public** dans les

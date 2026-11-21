@@ -76,6 +76,14 @@ DEFAULTS: dict[str, Any] = {
         # La bibliotheque est indexee en memoire et rafraichie a cet intervalle.
         "refresh_seconds": 600,
     },
+    "homeassistant": {
+        # Lecteur de Home Assistant sur lequel lancer un film (« media_player.… »),
+        # son nom pour l'affichage, et la facon de lancer : plex, lien ou app.
+        # Choisis dans les Reglages : rien n'est suppose sur ton installation.
+        "player": "",
+        "player_name": "",
+        "method": "plex",
+    },
     "cache": {"enabled": True, "ttl_seconds": 86400, "tracker_ttl_seconds": 900},
 }
 

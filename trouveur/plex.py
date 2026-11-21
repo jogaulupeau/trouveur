@@ -95,6 +95,15 @@ class Plex:
         directories = (payload.get("MediaContainer") or {}).get("Directory") or []
         return [str(d["key"]) for d in directories if d.get("type") == "movie" and d.get("key")]
 
+    def _section_titles(self) -> dict[str, str]:
+        """Nom de chaque bibliotheque : Home Assistant en a besoin pour lancer un film."""
+        try:
+            payload = self._call("/library/sections")
+        except PlexError:
+            return {}
+        directories = (payload.get("MediaContainer") or {}).get("Directory") or []
+        return {str(d["key"]): str(d.get("title") or "") for d in directories if d.get("key")}
+
     def _fetch_section(self, key: str) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
         for page in range(MAX_PAGES):
@@ -122,9 +131,11 @@ class Plex:
         presents: set[str] = set()
 
         total = 0
+        titres = self._section_titles()
         for key in self._movie_sections():
             for raw in self._fetch_section(key):
                 entry = self._entry(raw)
+                entry["library"] = titres.get(key, "")
                 total += 1
                 presents.add(entry["rating_key"]
                              or _title_key(entry["title"], entry["year"]))

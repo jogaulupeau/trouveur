@@ -562,14 +562,7 @@ function soirPeindreBillets(film) {
   const dispo = state.avail.get(film.id) || {};
   const plex = dispo.plex;
 
-  if (plex) {
-    const qualite = [plex.resolution, plex.codec ? plex.codec.toUpperCase() : null].filter(Boolean).join(', ');
-    billets.push(billet({
-      petit: 'Sur ton Plex, prêt maintenant',
-      grand: qualite || 'Dans ta bibliothèque',
-      action: plex.url ? { href: plex.url, texte: 'Ouvrir', externe: true } : null,
-    }));
-  }
+  if (plex) billets.push(billetPlex(film, plex, false));
 
   const plateformes = dispo.providers || [];
   if (plateformes.length) {

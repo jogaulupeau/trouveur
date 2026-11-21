@@ -148,6 +148,31 @@ Le bouton **Rafraîchir la bibliothèque Plex** le relit sur-le-champ et annonce
 ce qui a bougé — « 1 248 films (+3, −1) ». Les badges de la grille en cours sont
 redessinés dans la foulée.
 
+## Lancer un film sur la télé
+
+Sur un film qui est dans ta bibliothèque Plex, le bouton **Lancer** demande à Home
+Assistant de le lire sur un lecteur de ton choix. Rien ne part tant que tu ne
+cliques pas.
+
+L'add-on a pour cela l'accès à l'API de Home Assistant (`homeassistant_api` dans
+`config.yaml`), avec un jeton que Home Assistant lui fournit : rien à copier. Ce
+jeton permet d'appeler les services de Home Assistant en général ; Trouveur ne
+s'en sert que pour envoyer la commande de lecture au lecteur choisi.
+
+Dans **Réglages → Télé** :
+
+1. **Lecteur** : la liste vient de Home Assistant, rien n'est supposé.
+2. **Façon de lancer** : *Chromecast* (par l'intégration Plex de Home Assistant,
+   qui doit être installée et connectée à ton serveur), *Android TV par un lien*
+   vers l'application Plex, ou *ouvrir seulement l'application Plex*.
+3. **Voir ce que l'appareil annonce** : l'état et les applications que Home
+   Assistant connaît pour ce lecteur.
+
+Si quelqu'un regarde déjà quelque chose sur ce lecteur, le bouton demande
+confirmation (« Remplacer ») avant d'envoyer quoi que ce soit. Quand le lancement
+échoue, le message de Home Assistant s'affiche tel quel, avec le titre à chercher
+dans Plex.
+
 ## Tracker
 
 Le tracker se choisit dans **Réglages → Tracker** : `tr4ker.net`, `v3x.club`, ou

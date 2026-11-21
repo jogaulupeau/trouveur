@@ -1654,6 +1654,24 @@ a.stub:hover, .stub:has(button:hover) { filter: brightness(1.1); }
 .stub-go:disabled { cursor: progress; opacity: 0.8; }
 .stub-go.is-failed { text-decoration: underline wavy; }
 
+.stub-link {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: 13px;
+  color: inherit;
+  opacity: 0.85;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.stub-link:hover { opacity: 1; }
+.stub-link:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+.launch-note { max-width: 62ch; margin: 12px 0 0; font-size: 15px; line-height: 1.5; color: var(--text-dim); }
+.launch-note.is-ok { color: var(--green); }
+.launch-note.is-error { color: #f2b2ad; }
+
+.tv-facts { margin-top: 12px; max-width: none; }
+#tv-availability { margin: 0 0 14px; }
 .soir-versions { max-width: 760px; margin-top: 18px; }
 .soir-versions:empty { display: none; }
 .soir-versions-title { margin: 0 0 12px; font-size: 20px; font-weight: 700; }
