@@ -3,41 +3,44 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Trouveur — propositions de films</title>
+<title>Trouveur</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,500..900&family=Atkinson+Hyperlegible+Next:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#127916;</text></svg>">
 </head>
-<body>
+<body data-screen="soir">
 
 <header class="masthead">
-  <div class="masthead-brand">
-    <span class="masthead-mark" aria-hidden="true"></span>
-    <div>
-      <h1>Trouveur</h1>
-      <p class="masthead-tagline">Des films à voir, choisis selon vos critères</p>
-    </div>
-  </div>
+  <span class="masthead-logo">trouveur</span>
+
+  <nav class="mainnav" id="mainnav" aria-label="Navigation">
+    <button type="button" data-nav="soir" aria-current="page">Ce soir</button>
+    <button type="button" data-nav="parcourir">Parcourir</button>
+    <button type="button" data-nav="liste">Ma liste <span class="nav-count" id="count-liste"></span></button>
+    <button type="button" data-nav="reglages" id="open-settings">Réglages</button>
+  </nav>
+
   <form class="search" id="search-form" role="search">
-    <input type="search" id="search-input" placeholder="Chercher un film par son titre…"
+    <input type="search" id="search-input" placeholder="Chercher un film"
            aria-label="Chercher un film par son titre" autocomplete="off">
     <button type="submit" class="search-go" aria-label="Lancer la recherche">Chercher</button>
   </form>
-
-  <button type="button" class="masthead-settings" id="open-settings" title="Configuration">
-    <span class="gear" aria-hidden="true"></span><span>Réglages</span>
-  </button>
-
-  <div class="masthead-status" id="tracker-status" hidden>
-    <span class="status-dot"></span><span id="tracker-status-label"></span>
-  </div>
 </header>
 
 <div class="panel-veil" id="panel-veil" hidden></div>
 
-<div class="layout">
+<!-- ------------------------------- ce soir -------------------------------- -->
+<main class="screen screen-soir" id="screen-soir">
+  <div class="soir">
+    <section class="soir-hero is-loading" id="soir-hero" aria-live="polite" aria-busy="true"></section>
+    <p class="soir-sentence" id="soir-sentence"></p>
+    <section class="soir-others" id="soir-others" aria-label="Autres idées" hidden></section>
+  </div>
+</main>
+
+<div class="layout screen" id="screen-parcourir" hidden>
 
   <!-- ------------------------------- critères ------------------------------- -->
   <aside class="panel" id="panel">
@@ -200,15 +203,17 @@
 
 <!-- --------------------------------- fiche --------------------------------- -->
 <!-- ------------------------------ réglages ------------------------------- -->
-<div class="sheet-backdrop" id="settings-backdrop" hidden>
-  <article class="sheet sheet-narrow" role="dialog" aria-modal="true" aria-label="Configuration">
-    <button class="sheet-close" id="settings-close" aria-label="Fermer">&times;</button>
-    <div class="settings">
-      <h3 class="settings-title">Réglages</h3>
+<main class="screen screen-settings" id="screen-reglages" hidden>
+  <div class="settings-page">
+    <aside class="settings-side">
+      <h2 class="settings-title">Réglages</h2>
       <p class="settings-intro" id="settings-intro"></p>
+      <ul class="status-list" id="status-list" aria-label="État des services"></ul>
+    </aside>
+    <div class="settings">
 
       <form id="settings-form">
-        <section class="settings-block">
+        <section class="settings-block" id="set-tmdb">
           <h4>TMDB <span class="required">obligatoire</span></h4>
           <p class="settings-help">
             Source des fiches, affiches et bandes-annonces.
@@ -231,7 +236,7 @@
           </div>
         </section>
 
-        <section class="settings-block">
+        <section class="settings-block" id="set-plex">
           <h4>Serveur Plex</h4>
           <p class="settings-help">
             La connexion se fait chez Plex : ton mot de passe ne passe jamais par
@@ -262,7 +267,7 @@
           <p class="settings-state" id="plex-refresh-state"></p>
         </section>
 
-        <section class="settings-block">
+        <section class="settings-block" id="set-services">
           <h4>Mes abonnements</h4>
           <p class="settings-help">
             Seuls les services cochés sont proposés en filtre et affichés en badge
@@ -272,7 +277,7 @@
           <div class="providers" id="set-services"></div>
         </section>
 
-        <section class="settings-block">
+        <section class="settings-block" id="set-lists">
           <h4>Mes listes</h4>
           <p class="settings-help">
             Reprendre des listes venant d'une autre installation. L'import est
@@ -286,7 +291,7 @@
           <p class="settings-state" id="import-state"></p>
         </section>
 
-        <section class="settings-block">
+        <section class="settings-block" id="set-deluge">
           <h4>Deluge</h4>
           <p class="settings-help">
             Envoyer les torrents directement au serveur. Trouveur télécharge le
@@ -365,7 +370,7 @@
           <div id="deluge-state"></div>
         </section>
 
-        <section class="settings-block">
+        <section class="settings-block" id="set-tracker">
           <h4>Tracker</h4>
           <label class="switch settings-switch">
             <input type="checkbox" id="set-tracker-enabled">
@@ -401,8 +406,8 @@
         </p>
       </form>
     </div>
-  </article>
-</div>
+  </div>
+</main>
 
 <div class="sheet-backdrop" id="sheet-backdrop" hidden>
   <article class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Fiche du film">
@@ -437,5 +442,6 @@
 </template>
 
 <script src="app.js"></script>
+<script src="soir.js"></script>
 </body>
 </html>

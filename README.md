@@ -82,7 +82,7 @@ trouveur/reco.py       suggestions baties sur l'historique
 trouveur/plex.py       index de la bibliotheque Plex
 trouveur/plex_auth.py  connexion Plex par code PIN (OAuth)
 trouveur/plex_setup.py assistant --plex-login
-web/                   interface : une page, un script, une feuille de style
+web/                   interface : une page, deux scripts (app.js, soir.js), une feuille de style
 trouveur/paths.py      ou vivent les donnees (local ou volume dedie)
 addon/                 paquet Home Assistant
 package_addon.py       assemble addon/app/
@@ -199,6 +199,38 @@ La bibliothèque entière est chargée une fois puis indexée en mémoire pour l
 durée de `refresh_seconds` : répondre pour les vingt films d'une grille ne coûte
 alors **aucun** appel réseau. Comme pour les autres services, le jeton ne quitte
 jamais le serveur — il n'apparaît ni dans la page ni dans les liens.
+
+## Ce soir
+
+L'accueil ne montre pas un catalogue : il répond à « qu'est-ce qu'on regarde
+ce soir ? ». Un film, où le regarder, et un bouton **Pas ce soir** qui en propose
+un autre. Le catalogue complet (filtres, « Pour toi », « Au cinéma », listes)
+reste dans **Parcourir** et **Ma liste**.
+
+Le film est **tiré au hasard** parmi ce que la phrase en bas de page autorise :
+« Ce soir, je veux *un thriller* *de moins de 2 h* *sur mon Plex* ». Genre,
+durée et source couvrent la plupart des soirs ; **Voir tout le catalogue** reprend
+la phrase dans les filtres de Parcourir pour aller plus loin. Les planchers sont
+ceux de Parcourir (note 6,5, 300 votes), les films déjà vus ou ignorés ne sont
+jamais tirés, et ceux déjà passés ce soir ne reviennent pas. La phrase est
+retenue par le navigateur.
+
+Chaque source de visionnage est un **billet**, du plus immédiat au plus long :
+
+- **Plex** : qualité du fichier et bouton *Ouvrir* (le lien Plex). Le lancement
+  direct sur la télé viendra ensuite.
+- **Abonnement** : la plateforme qui inclut le film. TMDB ne donne pas de lien
+  direct vers le film chez la plateforme, le billet informe donc sans bouton.
+- **Torrent** : seulement quand le film n'est pas sur Plex, même s'il est aussi
+  en abonnement. Le tracker n'est interrogé que dans ce cas. Le billet montre la
+  meilleure version (1080p et version française d'abord, puis la plus alimentée)
+  et *Envoyer à Deluge* quand Deluge est configuré, sinon le fichier `.torrent`.
+
+Le fond de la page prend la couleur dominante de l'affiche. Cela suppose que
+TMDB autorise la lecture des pixels de ses images depuis le navigateur ; si ce
+n'était pas le cas, l'accent reste ambre et rien d'autre ne change.
+
+Sur téléphone la navigation passe en barre du bas, à portée de pouce.
 
 ## Recherche par titre
 
@@ -556,10 +588,14 @@ Au-dessus de 1080 px, rien ne change : le panneau reste fixe à gauche.
 
 ## Écran de réglages
 
-Le bouton **Réglages** ouvre la configuration : clé TMDB, abonnements de
-streaming, connexion Plex, tracker, et import de listes existantes. Tout se fait
-depuis le navigateur — indispensable dans un add-on Home Assistant, où aucun
-terminal n'est disponible.
+L'entrée **Réglages** ouvre une page de configuration : clé TMDB, abonnements de
+streaming, connexion Plex, tracker, Deluge, et import de listes existantes. Tout
+se fait depuis le navigateur — indispensable dans un add-on Home Assistant, où
+aucun terminal n'est disponible.
+
+En tête de page, un résumé de chaque service (clé enregistrée, serveur connecté,
+activé ou non) ; un clic mène au bloc concerné. « Configuré » ne veut pas dire
+« répond » : le test de connexion reste au bouton de chaque bloc.
 
 Deux règles y sont tenues partout :
 

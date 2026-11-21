@@ -15,6 +15,9 @@ const state = {
   seen: new Set(),          // ids TMDB des films déjà vus
   watchlist: new Set(),     // ids TMDB des films à voir
   ignored: new Set(),       // films écartés, plus jamais proposés
+  screen: 'soir',           // soir | parcourir | reglages
+  prevScreen: 'soir',       // où revenir en quittant les réglages
+  providerList: [],         // plateformes de la région (Plex en tête, s'il est connecté)
   mode: 'decouverte',       // decouverte | foryou | recherche | similaires | watchlist | seen | ignored
   searchQuery: '',
   similarTo: null,      // {id, title} quand on explore les films proches
@@ -98,10 +101,15 @@ function showNotice(message, isError) {
 
 /* ------------------------------ démarrage -------------------------------- */
 
+let eventsBound = false;
+
 async function bootstrap() {
-  buildDecades();
-  bindEvents();
-  syncRangeLabels();
+  if (!eventsBound) {
+    eventsBound = true;
+    buildDecades();
+    bindEvents();
+    syncRangeLabels();
+  }
 
   try {
     const data = await api('/api/bootstrap');
@@ -113,26 +121,52 @@ async function bootstrap() {
     state.deluge = data.deluge || { enabled: false };
     data.genres.forEach((g) => state.genres.set(g.id, g.name));
     buildGenreChips(data.genres);
-    buildProviders();
-    renderTrackerStatus();
+    await buildProviders();
     renderSeenCount();
     renderTabCounts();
 
     // Sans clé TMDB rien ne peut fonctionner : on ouvre directement l'écran de
     // configuration plutôt que d'afficher une grille vide et inexplicable.
-    if (data.configured === false) openSettings();
+    if (data.configured === false) {
+      openSettings();
+    } else {
+      soirInit();
+    }
   } catch (error) {
     showNotice(error.message, true);
   }
 }
 
-function renderTrackerStatus() {
-  const box = $('tracker-status');
-  box.hidden = false;
-  box.classList.toggle('is-on', state.tracker.enabled);
-  $('tracker-status-label').textContent = state.tracker.enabled
-    ? `${state.tracker.name} connecté`
-    : `${state.tracker.name} non configuré`;
+/* ------------------------------- navigation ------------------------------ */
+
+const ECRANS = ['soir', 'parcourir', 'reglages'];
+
+function showScreen(name) {
+  if (name === 'reglages' && state.screen !== 'reglages') state.prevScreen = state.screen;
+  state.screen = name;
+  ECRANS.forEach((ecran) => { $(`screen-${ecran}`).hidden = ecran !== name; });
+  document.body.dataset.screen = name;
+  updateNav();
+  window.scrollTo(0, 0);
+}
+
+/** « Ma liste » n'est pas un écran : c'est « Parcourir » ouvert sur les films à voir. */
+function updateNav() {
+  const courant = state.screen === 'parcourir' && state.mode === 'watchlist'
+    ? 'liste' : state.screen;
+  [...$('mainnav').children].forEach((bouton) => {
+    if (bouton.dataset.nav === courant) bouton.setAttribute('aria-current', 'page');
+    else bouton.removeAttribute('aria-current');
+  });
+}
+
+async function goTo(cible) {
+  if (cible === 'reglages') { openSettings(); return; }
+  if (cible === 'soir') { showScreen('soir'); return; }
+  showScreen('parcourir');
+  if (cible === 'liste') { await showList('watchlist'); return; }
+  // Première visite : mieux vaut montrer des films que demander de remplir un formulaire.
+  if (state.mode === 'decouverte' && !state.lastMovies.length) await runSearch();
 }
 
 /* ----------------------------- films déjà vus ---------------------------- */
@@ -197,6 +231,7 @@ function paintSeen(movieId) {
 /* ------------------------------ liste à voir ----------------------------- */
 
 function renderTabCounts() {
+  $('count-liste').textContent = state.watchlist.size || '';
   $('count-watchlist').textContent = state.watchlist.size || '';
   $('count-ignored').textContent = state.ignored.size || '';
   $('count-seen').textContent = state.seen.size || '';
@@ -231,6 +266,7 @@ async function toggleWant(movie) {
 
 function paintWant(movieId) {
   const wanted = state.watchlist.has(movieId);
+  soirPeindreVoir(movieId);   // l'écran « Ce soir » suit la même liste
 
   [...$('grid').children].forEach((card) => {
     if (!card._movie || card._movie.id !== movieId) return;
@@ -311,6 +347,7 @@ function setMode(mode) {
   [...$('tabs').children].forEach((tab) => {
     tab.classList.toggle('on', tab.dataset.view === mode);
   });
+  updateNav();
 }
 
 /** Vide la grille et remet la pagination à zéro, sans changer les critères. */
@@ -421,6 +458,7 @@ async function buildProviders() {
     return;
   }
 
+  state.providerList = data.providers || [];
   (data.providers || []).forEach((provider) => {
     const chip = el('button', `provider${provider.local ? ' is-local' : ''}`);
     chip.type = 'button';
@@ -566,7 +604,14 @@ function bindEvents() {
 
   $('search-form').addEventListener('submit', (event) => {
     event.preventDefault();
+    if (!$('search-input').value.trim()) return;
+    showScreen('parcourir');
     runTitleSearch($('search-input').value);
+  });
+
+  $('mainnav').addEventListener('click', (event) => {
+    const bouton = event.target.closest('button[data-nav]');
+    if (bouton) goTo(bouton.dataset.nav);
   });
 
   $('tabs').addEventListener('click', (event) => {
@@ -603,8 +648,6 @@ function bindEvents() {
     setTimeout(() => { scrollPending = false; maybeLoadMore(); }, 150);
   }, { passive: true });
 
-  $('open-settings').addEventListener('click', openSettings);
-  $('settings-close').addEventListener('click', closeSettings);
   $('settings-form').addEventListener('submit', saveSettings);
   $('plex-connect').addEventListener('click', plexConnect);
   $('plex-sync-now').addEventListener('click', plexSyncNow);
@@ -620,9 +663,6 @@ function bindEvents() {
     $(`cert-${role}-file`).addEventListener('change', (e) => deposerCertificat(role, e.target));
   });
   $('set-import').addEventListener('change', importerFichiers);
-  $('settings-backdrop').addEventListener('click', (event) => {
-    if (event.target === $('settings-backdrop')) closeSettings();
-  });
 
   $('sheet-close').addEventListener('click', closeSheet);
   $('sheet-backdrop').addEventListener('click', (event) => {
@@ -631,7 +671,7 @@ function bindEvents() {
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
     if (!$('sheet-backdrop').hidden) closeSheet();
-    else if (!$('settings-backdrop').hidden) closeSettings();
+    else if (state.screen === 'reglages') closeSettings();
     else if ($('panel').classList.contains('is-open')) closeFilters();
   });
 }
@@ -1603,16 +1643,15 @@ let plexPin = null;
 let plexTimer = null;
 
 function openSettings() {
-  $('settings-backdrop').hidden = false;
-  document.body.style.overflow = 'hidden';
+  showScreen('reglages');
   loadSettings();
 }
 
+/** Quitte les réglages pour l'écran d'où l'on vient. */
 function closeSettings() {
-  $('settings-backdrop').hidden = true;
-  document.body.style.overflow = '';
   clearTimeout(plexTimer);
   plexPin = null;
+  showScreen(state.prevScreen || 'soir');
 }
 
 async function loadSettings() {
@@ -1624,6 +1663,7 @@ async function loadSettings() {
     return;
   }
 
+  renderServiceStatus(s);
   $('settings-intro').textContent = s.configured
     ? 'Les champs de clé restent vides : une valeur enregistrée n’est jamais renvoyée au navigateur.'
     : 'Renseigne au minimum une clé TMDB pour que l’application puisse fonctionner.';
@@ -1664,6 +1704,37 @@ async function loadSettings() {
   $('tracker-state').textContent = '';
 
   await buildServiceChoices(s.streaming.my_services);
+}
+
+/** Résumé des services en tête des réglages : ce qui est en place, d'un coup d'œil.
+ *  « Configuré » ne veut pas dire « répond » : le test reste au bouton de chaque bloc. */
+function renderServiceStatus(s) {
+  const lignes = [
+    { cible: 'set-tmdb', nom: 'TMDB', ok: s.tmdb.has_key,
+      texte: s.tmdb.has_key ? 'Clé enregistrée' : 'Clé manquante' },
+    { cible: 'set-plex', nom: 'Plex', ok: Boolean(s.plex.has_token),
+      texte: s.plex.has_token ? 'Serveur connecté' : 'Aucun serveur' },
+    { cible: 'set-tracker', nom: s.tracker.name || 'Tracker',
+      ok: s.tracker.enabled && s.tracker.has_key,
+      texte: s.tracker.enabled ? (s.tracker.has_key ? 'Activé' : 'Clé manquante') : 'Désactivé' },
+    { cible: 'set-deluge', nom: 'Deluge', ok: s.deluge.enabled && s.deluge.has_password,
+      texte: s.deluge.enabled ? 'Activé' : 'Désactivé' },
+  ];
+  const liste = $('status-list');
+  liste.textContent = '';
+  lignes.forEach((ligne) => {
+    const item = el('li');
+    const bouton = el('button', `status-row${ligne.ok ? ' is-ok' : ''}`);
+    bouton.type = 'button';
+    bouton.appendChild(el('span', 'status-dot'));
+    bouton.appendChild(el('span', 'status-name', ligne.nom));
+    bouton.appendChild(el('span', 'status-text', ligne.texte));
+    bouton.addEventListener('click', () => {
+      $(ligne.cible).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    item.appendChild(bouton);
+    liste.appendChild(item);
+  });
 }
 
 function settingsNotice(message, isError) {
@@ -1716,43 +1787,7 @@ async function saveSettings(event) {
     settingsNotice('Enregistré. Les réglages sont pris en compte immédiatement.', false);
     await loadSettings();
     // Le bandeau, les genres et les plateformes dépendent de la configuration.
-    await /* --------------------------- tiroir de filtres --------------------------- */
-
-/** Le tiroir n'existe qu'en dessous de 1080 px ; au-dessus le panneau est fixe. */
-function filtresEnTiroir() {
-  return matchMedia('(max-width: 1080px)').matches;
-}
-
-function openFilters() {
-  if (!filtresEnTiroir()) return;
-  $('panel').classList.add('is-open');
-  $('panel-veil').hidden = false;
-  document.body.style.overflow = 'hidden';
-}
-
-function closeFilters() {
-  $('panel').classList.remove('is-open');
-  $('panel-veil').hidden = true;
-  // La fiche peut être ouverte par-dessus : ne pas lui rendre le défilement.
-  if ($('sheet-backdrop').hidden && $('settings-backdrop').hidden) {
-    document.body.style.overflow = '';
-  }
-}
-
-/** Compte les critères actifs, pour que le bouton dise s'il se passe quelque
- *  chose derrière lui — sinon le tiroir fermé cache l'état des filtres. */
-function renderFiltersCount() {
-  let n = state.genreChoice.size + state.providers.size;
-  if ($('year-min').value.trim() || $('year-max').value.trim()) n += 1;
-  if (parseFloat($('rating-min').value) !== 6.5) n += 1;
-  if (parseInt($('runtime-max').value, 10) < 245) n += 1;
-  if ($('original-language').value) n += 1;
-  if ($('keyword').value.trim()) n += 1;
-  if ($('hide-seen').checked) n += 1;
-  $('filters-count').textContent = n || '';
-}
-
-bootstrap();
+  await bootstrap();
   } catch (error) {
     settingsNotice(error.message, true);
   } finally {
@@ -1866,43 +1901,7 @@ async function plexFinish(index, bouton) {
     $('plex-state').className = 'settings-state is-ok';
     $('plex-servers').textContent = '';
     plexPin = null;
-    await /* --------------------------- tiroir de filtres --------------------------- */
-
-/** Le tiroir n'existe qu'en dessous de 1080 px ; au-dessus le panneau est fixe. */
-function filtresEnTiroir() {
-  return matchMedia('(max-width: 1080px)').matches;
-}
-
-function openFilters() {
-  if (!filtresEnTiroir()) return;
-  $('panel').classList.add('is-open');
-  $('panel-veil').hidden = false;
-  document.body.style.overflow = 'hidden';
-}
-
-function closeFilters() {
-  $('panel').classList.remove('is-open');
-  $('panel-veil').hidden = true;
-  // La fiche peut être ouverte par-dessus : ne pas lui rendre le défilement.
-  if ($('sheet-backdrop').hidden && $('settings-backdrop').hidden) {
-    document.body.style.overflow = '';
-  }
-}
-
-/** Compte les critères actifs, pour que le bouton dise s'il se passe quelque
- *  chose derrière lui — sinon le tiroir fermé cache l'état des filtres. */
-function renderFiltersCount() {
-  let n = state.genreChoice.size + state.providers.size;
-  if ($('year-min').value.trim() || $('year-max').value.trim()) n += 1;
-  if (parseFloat($('rating-min').value) !== 6.5) n += 1;
-  if (parseInt($('runtime-max').value, 10) < 245) n += 1;
-  if ($('original-language').value) n += 1;
-  if ($('keyword').value.trim()) n += 1;
-  if ($('hide-seen').checked) n += 1;
-  $('filters-count').textContent = n || '';
-}
-
-bootstrap();
+  await bootstrap();
   } catch (error) {
     $('plex-state').textContent = error.message;
     $('plex-state').className = 'settings-state is-error';
@@ -2172,43 +2171,7 @@ async function importerFichiers(event) {
   etat.textContent = lignes.join(' ');
   etat.className = 'settings-state is-ok';
   event.target.value = '';   // permet de réimporter le même fichier
-  await /* --------------------------- tiroir de filtres --------------------------- */
-
-/** Le tiroir n'existe qu'en dessous de 1080 px ; au-dessus le panneau est fixe. */
-function filtresEnTiroir() {
-  return matchMedia('(max-width: 1080px)').matches;
-}
-
-function openFilters() {
-  if (!filtresEnTiroir()) return;
-  $('panel').classList.add('is-open');
-  $('panel-veil').hidden = false;
-  document.body.style.overflow = 'hidden';
-}
-
-function closeFilters() {
-  $('panel').classList.remove('is-open');
-  $('panel-veil').hidden = true;
-  // La fiche peut être ouverte par-dessus : ne pas lui rendre le défilement.
-  if ($('sheet-backdrop').hidden && $('settings-backdrop').hidden) {
-    document.body.style.overflow = '';
-  }
-}
-
-/** Compte les critères actifs, pour que le bouton dise s'il se passe quelque
- *  chose derrière lui — sinon le tiroir fermé cache l'état des filtres. */
-function renderFiltersCount() {
-  let n = state.genreChoice.size + state.providers.size;
-  if ($('year-min').value.trim() || $('year-max').value.trim()) n += 1;
-  if (parseFloat($('rating-min').value) !== 6.5) n += 1;
-  if (parseInt($('runtime-max').value, 10) < 245) n += 1;
-  if ($('original-language').value) n += 1;
-  if ($('keyword').value.trim()) n += 1;
-  if ($('hide-seen').checked) n += 1;
-  $('filters-count').textContent = n || '';
-}
-
-bootstrap();
+  await bootstrap();
 }
 
 /* --------------------------- tiroir de filtres --------------------------- */
@@ -2229,9 +2192,7 @@ function closeFilters() {
   $('panel').classList.remove('is-open');
   $('panel-veil').hidden = true;
   // La fiche peut être ouverte par-dessus : ne pas lui rendre le défilement.
-  if ($('sheet-backdrop').hidden && $('settings-backdrop').hidden) {
-    document.body.style.overflow = '';
-  }
+  if ($('sheet-backdrop').hidden) document.body.style.overflow = '';
 }
 
 /** Compte les critères actifs, pour que le bouton dise s'il se passe quelque
