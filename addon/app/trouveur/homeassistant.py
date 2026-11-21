@@ -14,6 +14,10 @@ materiel et qu'on ne peut pas deviner de loin laquelle convient :
             L'integration Android TV Remote n'accepte que « app », « url » et
             « channel » : c'est la methode qui lui convient.
   lien_web  le meme, avec le lien web de Plex (https://app.plex.tv/...).
+  preplay   plex://preplay/?metadataKey=...&server=... : la fiche du film.
+  play      plex://play/?metadataKey=...&server=... : la lecture.
+  intent    un « intent: » Android avec l'indicateur de lecture de Plex
+            (android.intent.extra.START_PLAYBACK). Experimental.
   app       ouvre seulement l'application Plex. Ne choisit pas le film.
   plex      l'integration Plex de Home Assistant (Chromecast) : play_media avec un
             identifiant « plex://{...} » qui nomme la bibliotheque et le titre.
@@ -29,11 +33,16 @@ from __future__ import annotations
 import json
 import os
 import re
+import urllib.parse
 from typing import Any
 
 from .http_client import HttpError, get_json, post_json, redact, register_secret
 
-METHODES = ("lien", "lien_web", "app", "plex")
+METHODES = ("lien", "lien_web", "preplay", "play", "intent", "app", "plex")
+
+# Methodes dont le lien nomme le serveur et le film : il leur faut l'identifiant
+# du serveur Plex.
+AVEC_SERVEUR = ("lien", "preplay", "play", "intent")
 PLEX_ANDROID = "com.plexapp.android"
 URL_SUPERVISEUR = "http://supervisor/core/api"
 
@@ -140,9 +149,32 @@ class HomeAssistant:
 
     # -- lancement ---------------------------------------------------------
 
-    def commande(self, film: dict[str, Any], machine: str | None) -> dict[str, Any]:
+    def commande(self, film: dict[str, Any], machine: str | None,
+                 methode: str | None = None) -> dict[str, Any]:
         """Les donnees envoyees a media_player.play_media, selon la methode."""
-        if self.method == "plex":
+        methode = methode if methode in METHODES else self.method
+        if methode in AVEC_SERVEUR and not (machine and film.get("rating_key")):
+            raise HomeAssistantError(
+                "Il manque l'identifiant du serveur ou du film pour faire le lien.")
+        cle = film.get("rating_key")
+        if methode in ("preplay", "play"):
+            # Meme forme que les liens que Plex publie : cle de metadonnees encodee.
+            return {
+                "entity_id": self.player,
+                "media_content_type": "url",
+                "media_content_id": "plex://%s/?metadataKey=%s&metadataType=1&server=%s" % (
+                    methode, urllib.parse.quote("/library/metadata/%s" % cle, safe=""), machine),
+            }
+        if methode == "intent":
+            return {
+                "entity_id": self.player,
+                "media_content_type": "url",
+                "media_content_id": (
+                    "intent://server://%s/com.plexapp.plugins.library/library/metadata/%s"
+                    "#Intent;scheme=plex;package=%s;B.android.intent.extra.START_PLAYBACK=true;end"
+                    % (machine, cle, PLEX_ANDROID)),
+            }
+        if methode == "plex":
             if not film.get("library"):
                 raise HomeAssistantError(
                     "Plex n'a pas dit dans quelle bibliotheque est ce film : "
@@ -155,7 +187,7 @@ class HomeAssistant:
                 "media_content_type": "movie",
                 "media_content_id": "plex://" + json.dumps(recherche, ensure_ascii=False),
             }
-        if self.method == "lien_web":
+        if methode == "lien_web":
             if not film.get("web_url"):
                 raise HomeAssistantError(
                     "Il manque l'identifiant du serveur ou du film pour faire le lien.")
@@ -164,10 +196,7 @@ class HomeAssistant:
                 "media_content_type": "url",
                 "media_content_id": film["web_url"],
             }
-        if self.method == "lien":
-            if not (machine and film.get("rating_key")):
-                raise HomeAssistantError(
-                    "Il manque l'identifiant du serveur ou du film pour faire le lien.")
+        if methode == "lien":
             return {
                 "entity_id": self.player,
                 "media_content_type": "url",
@@ -181,7 +210,7 @@ class HomeAssistant:
         }
 
     def launch(self, film: dict[str, Any], machine: str | None,
-               confirm: bool = False) -> dict[str, Any]:
+               confirm: bool = False, method: str | None = None) -> dict[str, Any]:
         if not self.ready:
             raise HomeAssistantError("Aucune télé choisie dans les Réglages.")
         etat = self._get("/states/" + self.player) or {}
@@ -203,8 +232,9 @@ class HomeAssistant:
                 return {"status": "busy", "reason": "allume", "name": nom, "state": statut,
                         "title": attributs.get("media_title")}
 
-        self._post("/services/media_player/play_media", self.commande(film, machine))
-        return {"status": "ok", "name": nom, "method": self.method}
+        methode = method if method in METHODES else self.method
+        self._post("/services/media_player/play_media", self.commande(film, machine, methode))
+        return {"status": "ok", "name": nom, "method": methode}
 
 
 def _message(exc: HttpError) -> str:

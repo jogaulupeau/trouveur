@@ -182,8 +182,10 @@ async function lancerSurTele(movie, bouton) {
     if (r.method === 'app') {
       note.textContent = `Plex ouvert sur ${r.name}. Cherche « ${r.film} » dans Plex.`;
     } else {
-      note.textContent = `Lancement demandé à ${r.name} : « ${r.film} ».`;
+      note.textContent = `Lancement demandé à ${r.name} : « ${r.film} ». `
+        + 'Si Plex demande un profil ou un code PIN, saisis-le puis touche à nouveau Lancer.';
     }
+    proposerAutrement(movie, note, r.method);
     bouton.textContent = 'Demandé';
     rendre(6000);
   } catch (error) {
@@ -194,6 +196,70 @@ async function lancerSurTele(movie, bouton) {
     bouton.disabled = false;
     bouton.textContent = 'Lancer';
   }
+}
+
+/** « Lancement demandé » ne dit pas ce que la télé en a fait : Home Assistant
+ *  n'a aucun retour de l'appareil. Si rien ne s'affiche, on propose les autres
+ *  formes de lien, une par bouton, et de retenir celle qui a marché. */
+function proposerAutrement(movie, note, courante) {
+  const ancien = note.nextElementSibling;
+  if (ancien && ancien.classList.contains('launch-alt')) ancien.remove();
+  const zone = el('div', 'launch-alt');
+  zone.appendChild(el('p', 'muted', 'Rien ne s’affiche ? Essaie une autre forme de lien :'));
+  const rangee = el('div', 'launch-alt-row');
+  const retenir = el('p', 'launch-alt-retain');
+  retenir.hidden = true;
+
+  Object.keys(LIBELLES_LANCEMENT).filter((m) => m !== courante).forEach((methode) => {
+    const bouton = el('button', 'btn btn-ghost launch-alt-btn', LIBELLES_LANCEMENT[methode]);
+    bouton.type = 'button';
+    bouton.addEventListener('click', async () => {
+      bouton.disabled = true;
+      retenir.hidden = true;
+      try {
+        // L'utilisateur vient de lancer : pas besoin de redemander confirmation.
+        await api('/api/launch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: movie.id, title: movie.title, year: movie.year, method: methode, confirm: true,
+          }),
+        });
+        bouton.textContent = `${LIBELLES_LANCEMENT[methode]} : demandé`;
+        retenir.textContent = '';
+        retenir.appendChild(document.createTextNode('Ça a marché ? '));
+        const garder = el('button', 'btn btn-ghost launch-alt-btn',
+          `Retenir « ${LIBELLES_LANCEMENT[methode]} »`);
+        garder.type = 'button';
+        garder.addEventListener('click', async () => {
+          garder.disabled = true;
+          try {
+            await api('/api/settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ homeassistant: { method: methode } }),
+            });
+            state.tv.method = methode;
+            retenir.textContent = `Enregistré : « ${LIBELLES_LANCEMENT[methode]} » sera utilisé par défaut.`;
+          } catch (error) {
+            garder.disabled = false;
+            retenir.textContent = `Impossible d’enregistrer : ${error.message}`;
+          }
+        });
+        retenir.appendChild(garder);
+        retenir.hidden = false;
+      } catch (error) {
+        bouton.disabled = false;
+        note.classList.remove('is-ok');
+        note.classList.add('is-error');
+        note.textContent = `${LIBELLES_LANCEMENT[methode]} : ${String(error.message).trim()}`;
+      }
+    });
+    rangee.appendChild(bouton);
+  });
+  zone.appendChild(rangee);
+  zone.appendChild(retenir);
+  note.after(zone);
 }
 
 /** Le billet « à télécharger ». Il dit combien de versions existent et ouvre
@@ -2006,11 +2072,27 @@ const AIDE_LANCEMENT = {
     + 'À essayer : tous les boîtiers ne suivent pas le lien.',
   lien_web: 'Comme la précédente, avec le lien web de Plex. À essayer si la première ouvre '
     + 'Plex sans afficher le film.',
+  preplay: 'Autre forme de lien Plex, vers la fiche du film. D’après les forums Plex, '
+    + 'l’application ouvre parfois l’accueil sans atteindre le film : à essayer.',
+  play: 'Autre forme de lien Plex, qui demande la lecture directe. À essayer.',
+  intent: 'Envoie un « intent » Android avec l’indicateur de lecture de Plex. Expérimental : '
+    + 'tous les boîtiers n’acceptent pas ce format.',
   app: 'Ouvre l’application Plex sans choisir le film : Trouveur affiche alors le titre à chercher. '
     + 'C’est le recours quand aucun lien ne passe.',
   plex: 'Demande à Home Assistant de lancer le film par son titre, dans sa bibliothèque Plex. '
     + 'Il faut l’intégration Plex de Home Assistant et un lecteur de type Chromecast : '
     + 'Android TV Remote n’accepte pas cette commande.',
+};
+
+// Les formes de lien qu'on peut essayer l'une après l'autre quand la première
+// ouvre Plex sans atteindre le film. « plex » (Chromecast) n'en fait pas partie.
+const LIBELLES_LANCEMENT = {
+  lien: 'lien Plex',
+  lien_web: 'lien web',
+  preplay: 'fiche (preplay)',
+  play: 'lecture (play)',
+  intent: 'intent avec lecture',
+  app: 'ouvrir Plex seulement',
 };
 
 function aideLancement() {

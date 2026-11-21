@@ -30,6 +30,7 @@ from trouveur.http_client import HttpError
 from trouveur.certificates import CertificateError
 from trouveur.deluge import Deluge, DelugeError
 from trouveur.homeassistant import HomeAssistant, HomeAssistantError
+from trouveur.homeassistant import AVEC_SERVEUR as AVEC_SERVEUR_HA, METHODES as METHODES_HA
 from trouveur.plex import Plex, PlexError
 from trouveur.plex_auth import PlexAuthError
 from trouveur.reco import ForYou
@@ -772,10 +773,13 @@ def _lancer_sur_tele(corps: dict[str, Any]) -> dict[str, Any]:
     film = {
         "title": entree["title"], "year": entree["year"],
         "library": entree.get("library", ""), "rating_key": entree.get("rating_key", ""),
-        "web_url": PLEX.web_url(entree) if HA.method == "lien_web" else None,
+        "web_url": PLEX.web_url(entree),
     }
-    machine = PLEX.machine_id() if HA.method == "lien" else None
-    resultat = HA.launch(film, machine, confirm=bool(corps.get("confirm")))
+    # Un essai d'une autre methode que celle des reglages : pour trouver celle qui marche.
+    demandee = corps.get("method") if corps.get("method") in METHODES_HA else None
+    methode = demandee or HA.method
+    machine = PLEX.machine_id() if methode in AVEC_SERVEUR_HA else None
+    resultat = HA.launch(film, machine, confirm=bool(corps.get("confirm")), method=demandee)
     resultat["film"] = entree["title"]
     return resultat
 

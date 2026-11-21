@@ -167,6 +167,9 @@ Dans **Réglages → Télé** :
    l'application Plex* (le titre à chercher s'affiche alors). *Chromecast* passe
    par l'intégration Plex de Home Assistant et ne fonctionne pas avec Android TV
    Remote.
+   Si Plex s'ouvre sans afficher le film, utilisez **Essayer autrement** sous le
+   message de lancement : chaque bouton envoie une autre forme de lien, et
+   **Retenir** enregistre celle qui a marché.
 3. **Voir ce que l'appareil annonce** : l'état et les applications que Home
    Assistant connaît pour ce lecteur.
 4. **Demander confirmation quand le lecteur est allumé** (cochée par défaut) :

@@ -163,6 +163,43 @@ corps = APPELS[0]["corps"]
 check("« lien_web » envoie le lien https de Plex en type url",
       corps["media_content_type"] == "url" and corps["media_content_id"] == FILM["web_url"], str(corps))
 
+# -- les autres formes de lien Plex ---------------------------------------------------------------
+for forme in ("preplay", "play"):
+    APPELS.clear()
+    client(forme).launch(FILM, "MACHINE123")
+    contenu = APPELS[0]["corps"]["media_content_id"]
+    check("« %s » : lien plex://%s/ avec la cle encodee et le serveur" % (forme, forme),
+          contenu == "plex://%s/?metadataKey=%%2Flibrary%%2Fmetadata%%2F4242&metadataType=1&server=MACHINE123" % forme
+          and APPELS[0]["corps"]["media_content_type"] == "url", contenu)
+
+APPELS.clear()
+client("intent").launch(FILM, "MACHINE123")
+contenu = APPELS[0]["corps"]["media_content_id"]
+check("« intent » : un intent Android avec l'indicateur de lecture de Plex",
+      contenu.startswith("intent://server://MACHINE123/") and "scheme=plex" in contenu
+      and "package=com.plexapp.android" in contenu
+      and "B.android.intent.extra.START_PLAYBACK=true" in contenu and contenu.endswith(";end"), contenu)
+
+for forme in ("lien", "preplay", "play", "intent"):
+    try:
+        client(forme).launch(FILM, None)
+        check("« %s » sans identifiant de serveur : refuse" % forme, False)
+    except ha.HomeAssistantError as exc:
+        check("« %s » sans identifiant de serveur : refuse avec un message" % forme,
+              "serveur" in str(exc), str(exc))
+
+# -- essayer une autre methode que celle des reglages, pour une fois ---------------------------
+APPELS.clear()
+reponse = client("lien").launch(FILM, "MACHINE123", method="preplay")
+check("une methode demandee pour un essai remplace celle des reglages, une fois",
+      reponse["method"] == "preplay"
+      and APPELS[0]["corps"]["media_content_id"].startswith("plex://preplay/"), str(reponse))
+APPELS.clear()
+reponse = client("lien").launch(FILM, "MACHINE123", method="n-importe-quoi")
+check("une methode inconnue demandee retombe sur celle des reglages",
+      reponse["method"] == "lien"
+      and APPELS[0]["corps"]["media_content_id"].startswith("plex://server://"), str(reponse))
+
 # -- la methode par defaut convient a Android TV Remote (app, url, channel) ------------------------
 par_defaut = ha.HomeAssistant({"homeassistant": {"player": "media_player.lecteur_salon"}})
 check("sans reglage, la methode est le lien Plex, pas la commande Chromecast",
