@@ -252,14 +252,17 @@ Assistant est accordé par `homeassistant_api` (un jeton fourni par Home Assista
 rien à copier). Hors add-on, `TROUVEUR_HA_URL` et `TROUVEUR_HA_TOKEN` jouent ce
 rôle, pour essayer en local.
 
-Trois façons de lancer, parce qu'elles ne conviennent pas au même matériel et
-qu'on ne peut pas deviner de loin laquelle convient :
+Quatre façons de lancer, parce qu'elles ne conviennent pas au même matériel et
+qu'on ne peut pas deviner de loin laquelle convient. L'intégration **Android TV
+Remote** de Home Assistant n'accepte dans `play_media` que `app`, `url` et
+`channel` : pour elle, ce sont les trois premières.
 
 | | Ce qui part vers `media_player.play_media` | Prérequis |
 |---|---|---|
-| **plex** (Chromecast) | `plex://{"library_name": …, "title": …, "year": …}`, type `movie` | l'intégration Plex de Home Assistant, connectée à ton serveur |
-| **lien** (Android TV) | un lien profond vers le film, type `url` | l'application Plex sur le boîtier |
+| **lien** (Android TV, par défaut) | `plex://server://<serveur>/com.plexapp.plugins.library/library/metadata/<film>`, type `url` | l'application Plex sur le boîtier |
+| **lien_web** (Android TV) | le lien web de Plex (`https://app.plex.tv/…`), type `url` | l'application Plex sur le boîtier |
 | **app** (Android TV) | l'identifiant de l'application Plex, type `app` | l'application Plex ; **ne choisit pas le film** |
+| **plex** (Chromecast) | `plex://{"library_name": …, "title": …, "year": …}`, type `movie` | l'intégration Plex de Home Assistant, connectée à ton serveur ; **inutilisable avec Android TV Remote** |
 
 Le titre et la bibliothèque viennent **de Plex**, relus côté serveur, pas de ce que
 la page envoie : c'est ce que l'intégration Plex sait retrouver. La page ne sert qu'à
@@ -267,10 +270,13 @@ identifier le film.
 
 Trois garde-fous :
 
-- **Si quelqu'un regarde déjà**, le serveur ne remplace rien sans confirmation :
-  le bouton devient « Remplacer ». Cela ne vaut que pour les lecteurs qui
-  annoncent leur état (un Chromecast le fait, l'intégration Android TV Remote ne
-  le fait pas).
+- **Si quelqu'un regarde peut-être**, le serveur n'envoie rien sans confirmation.
+  Un lecteur qui annonce ce qu'il lit (un Chromecast) fait passer le bouton à
+  « Remplacer ». Android TV Remote ne le dit pas : son état est seulement
+  « allumé » ou « éteint ». Un lecteur allumé demande donc un second clic
+  (« Lancer quand même »). La case *Demander confirmation quand le lecteur est
+  allumé*, cochée par défaut dans Réglages → Télé, se décoche pour s'en passer ;
+  la protection d'un lecteur qui lit vraiment reste active dans tous les cas.
 - **Un lecteur indisponible** est signalé par son nom, sans rien envoyer.
 - **Une erreur de Home Assistant** s'affiche telle quelle, jamais avec le jeton,
   suivie du titre à chercher dans Plex : c'est le plan B.

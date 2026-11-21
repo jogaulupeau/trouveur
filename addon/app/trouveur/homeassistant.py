@@ -7,14 +7,21 @@ pour essayer en local, TROUVEUR_HA_URL et TROUVEUR_HA_TOKEN jouent ce role.
 Rien n'est ecrit en dur sur l'installation de quelqu'un : le lecteur vise est un
 reglage, choisi dans la liste que Home Assistant donne lui-meme.
 
-Trois facons de lancer, au choix, parce qu'elles ne conviennent pas au meme
+Quatre facons de lancer, au choix, parce qu'elles ne conviennent pas au meme
 materiel et qu'on ne peut pas deviner de loin laquelle convient :
 
-  plex   l'integration Plex de Home Assistant (Chromecast) : play_media avec un
-         identifiant « plex://{...} » qui nomme la bibliotheque et le titre.
-  lien   un lien profond vers le film, ouvert dans l'application Plex
-         (Android TV).
-  app    ouvre seulement l'application Plex (Android TV). Ne choisit pas le film.
+  lien      un lien profond vers le film, ouvert dans l'application Plex.
+            L'integration Android TV Remote n'accepte que « app », « url » et
+            « channel » : c'est la methode qui lui convient.
+  lien_web  le meme, avec le lien web de Plex (https://app.plex.tv/...).
+  app       ouvre seulement l'application Plex. Ne choisit pas le film.
+  plex      l'integration Plex de Home Assistant (Chromecast) : play_media avec un
+            identifiant « plex://{...} » qui nomme la bibliotheque et le titre.
+            Ne fonctionne pas avec Android TV Remote.
+
+Android TV Remote ne dit pas si quelque chose est en cours de lecture : son etat
+est « on » ou « off ». Pour ne pas couper un film a quelqu'un, un lecteur allume
+demande donc confirmation avant le lancement (reglable).
 """
 
 from __future__ import annotations
@@ -26,7 +33,7 @@ from typing import Any
 
 from .http_client import HttpError, get_json, post_json, redact, register_secret
 
-METHODES = ("plex", "lien", "app")
+METHODES = ("lien", "lien_web", "app", "plex")
 PLEX_ANDROID = "com.plexapp.android"
 URL_SUPERVISEUR = "http://supervisor/core/api"
 
@@ -69,7 +76,9 @@ class HomeAssistant:
         bloc = config.get("homeassistant") or {}
         self.player: str = bloc.get("player") if entite_valide(bloc.get("player")) else ""
         self.player_name: str = str(bloc.get("player_name") or "")[:80]
-        self.method: str = bloc.get("method") if bloc.get("method") in METHODES else "plex"
+        self.method: str = bloc.get("method") if bloc.get("method") in METHODES else "lien"
+        # Vrai par defaut : mieux vaut un clic de trop qu'un film coupe.
+        self.confirm_on: bool = bloc.get("confirm_on", True) is not False
         self._base, self._jeton = _acces()
         register_secret(self._jeton)
 
@@ -146,6 +155,15 @@ class HomeAssistant:
                 "media_content_type": "movie",
                 "media_content_id": "plex://" + json.dumps(recherche, ensure_ascii=False),
             }
+        if self.method == "lien_web":
+            if not film.get("web_url"):
+                raise HomeAssistantError(
+                    "Il manque l'identifiant du serveur ou du film pour faire le lien.")
+            return {
+                "entity_id": self.player,
+                "media_content_type": "url",
+                "media_content_id": film["web_url"],
+            }
         if self.method == "lien":
             if not (machine and film.get("rating_key")):
                 raise HomeAssistantError(
@@ -175,9 +193,15 @@ class HomeAssistant:
             raise HomeAssistantError(
                 "%s ne répond pas à Home Assistant (état « indisponible »)." % nom)
         # Quelqu'un regarde peut-etre : on ne remplace pas sans qu'on nous le dise.
-        if statut in OCCUPE and not confirm:
-            return {"status": "busy", "name": nom, "state": statut,
-                    "title": attributs.get("media_title")}
+        # Certains lecteurs disent ce qu'ils lisent ; les autres (Android TV Remote)
+        # disent seulement qu'ils sont allumes, ce qui suffit a demander.
+        if not confirm:
+            if statut in OCCUPE:
+                return {"status": "busy", "reason": "lecture", "name": nom, "state": statut,
+                        "title": attributs.get("media_title")}
+            if statut == "on" and self.confirm_on:
+                return {"status": "busy", "reason": "allume", "name": nom, "state": statut,
+                        "title": attributs.get("media_title")}
 
         self._post("/services/media_player/play_media", self.commande(film, machine))
         return {"status": "ok", "name": nom, "method": self.method}

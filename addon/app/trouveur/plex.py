@@ -286,16 +286,18 @@ class Plex:
 
         return {"items": found, "library_size": self.index()["count"]}
 
-    def _public(self, entry: dict[str, Any]) -> dict[str, Any]:
-        """Ce que l'interface recoit : jamais le jeton, ni d'URL le contenant."""
+    def web_url(self, entry: dict[str, Any]) -> str | None:
+        """Lien web vers la fiche du film dans Plex. Ne contient jamais le jeton."""
         machine = self.machine_id()
-        web_url = None
         if machine and entry.get("rating_key"):
             # safe="" : Plex attend une cle entierement encodee, slashs compris.
             key = urllib.parse.quote("/library/metadata/" + entry["rating_key"], safe="")
-            web_url = (
-                "https://app.plex.tv/desktop/#!/server/%s/details?key=%s" % (machine, key)
-            )
+            return "https://app.plex.tv/desktop/#!/server/%s/details?key=%s" % (machine, key)
+        return None
+
+    def _public(self, entry: dict[str, Any]) -> dict[str, Any]:
+        """Ce que l'interface recoit : jamais le jeton, ni d'URL le contenant."""
+        web_url = self.web_url(entry)
         return {
             "title": entry["title"],
             "year": entry["year"],

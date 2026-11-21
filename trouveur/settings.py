@@ -84,7 +84,8 @@ def current() -> dict[str, Any]:
             "available": ha_module.disponible(),
             "player": (config.get("homeassistant") or {}).get("player", ""),
             "player_name": (config.get("homeassistant") or {}).get("player_name", ""),
-            "method": (config.get("homeassistant") or {}).get("method", "plex"),
+            "method": (config.get("homeassistant") or {}).get("method", "lien"),
+            "confirm_on": (config.get("homeassistant") or {}).get("confirm_on", True) is not False,
             "methods": list(ha_module.METHODES),
         },
         "plex": {
@@ -173,6 +174,8 @@ def update(payload: dict[str, Any]) -> dict[str, Any]:
                 bloc["player_name"] = str(tele.get("player_name") or "")[:80]
         if tele.get("method") in ha_module.METHODES:
             bloc["method"] = tele["method"]
+        if isinstance(tele.get("confirm_on"), bool):
+            bloc["confirm_on"] = tele["confirm_on"]
 
     config_module.save(config)
     return current()

@@ -298,12 +298,23 @@
           <label class="settings-field">
             <span>Façon de lancer</span>
             <select id="set-tv-method">
-              <option value="plex">Chromecast, par l'intégration Plex de Home Assistant</option>
-              <option value="lien">Android TV, par un lien vers l'application Plex</option>
+              <option value="lien">Android TV, lien Plex vers le film</option>
+              <option value="lien_web">Android TV, lien web de Plex vers le film</option>
               <option value="app">Android TV, ouvrir seulement l'application Plex</option>
+              <option value="plex">Chromecast, par l'intégration Plex de Home Assistant</option>
             </select>
           </label>
           <p class="settings-help settings-sub" id="tv-method-help"></p>
+          <label class="switch settings-switch">
+            <input type="checkbox" id="set-tv-confirm" checked>
+            <span class="switch-track"><span class="switch-knob"></span></span>
+            <span class="switch-label">Demander confirmation quand le lecteur est allumé</span>
+          </label>
+          <p class="settings-help settings-sub">
+            Un lecteur Android TV Remote ne dit pas s'il lit quelque chose, seulement
+            s'il est allumé. Avec cette case, un lecteur allumé demande un second clic
+            avant de lancer : mieux vaut un clic de trop qu'un film coupé.
+          </p>
           <button type="button" class="btn btn-ghost settings-sync" id="tv-inspect">
             Voir ce que l'appareil annonce
           </button>

@@ -78,11 +78,14 @@ DEFAULTS: dict[str, Any] = {
     },
     "homeassistant": {
         # Lecteur de Home Assistant sur lequel lancer un film (« media_player.… »),
-        # son nom pour l'affichage, et la facon de lancer : plex, lien ou app.
+        # son nom pour l'affichage, et la facon de lancer : lien, lien_web, app ou plex.
         # Choisis dans les Reglages : rien n'est suppose sur ton installation.
         "player": "",
         "player_name": "",
-        "method": "plex",
+        "method": "lien",
+        # Demander confirmation quand le lecteur est allume (Android TV Remote ne
+        # dit pas s'il lit quelque chose).
+        "confirm_on": True,
     },
     "cache": {"enabled": True, "ttl_seconds": 86400, "tracker_ttl_seconds": 900},
 }

@@ -162,9 +162,16 @@ async function lancerSurTele(movie, bouton) {
     if (r.status === 'busy') {
       bouton.dataset.confirmer = '1';
       bouton.disabled = false;
-      bouton.textContent = 'Remplacer';
-      note.textContent = `${r.name} lit déjà ${r.title ? `« ${r.title} »` : 'quelque chose'}. `
-        + `Remplacer par « ${r.film} » ? Touche « Remplacer » pour confirmer.`;
+      if (r.reason === 'allume') {
+        // Ce lecteur ne dit pas ce qu'il lit : on sait seulement qu'il est allumé.
+        bouton.textContent = 'Lancer quand même';
+        note.textContent = `${r.name} est allumé : quelqu’un regarde peut-être quelque chose. `
+          + `Lancer « ${r.film} » quand même ? Touche « Lancer quand même » pour confirmer.`;
+      } else {
+        bouton.textContent = 'Remplacer';
+        note.textContent = `${r.name} lit déjà ${r.title ? `« ${r.title} »` : 'quelque chose'}. `
+          + `Remplacer par « ${r.film} » ? Touche « Remplacer » pour confirmer.`;
+      }
       // Sans suite, on redevient prudent : une confirmation ne doit pas traîner.
       setTimeout(() => {
         if (bouton.dataset.confirmer === '1') { delete bouton.dataset.confirmer; bouton.textContent = 'Lancer'; }
@@ -1994,11 +2001,16 @@ async function loadSettings() {
 /* ---------------------------------- télé ---------------------------------- */
 
 const AIDE_LANCEMENT = {
+  lien: 'Envoie à l’application Plex un lien vers le film. C’est la méthode faite pour '
+    + 'l’intégration Android TV Remote, qui n’accepte que les liens, les applications et les chaînes. '
+    + 'À essayer : tous les boîtiers ne suivent pas le lien.',
+  lien_web: 'Comme la précédente, avec le lien web de Plex. À essayer si la première ouvre '
+    + 'Plex sans afficher le film.',
+  app: 'Ouvre l’application Plex sans choisir le film : Trouveur affiche alors le titre à chercher. '
+    + 'C’est le recours quand aucun lien ne passe.',
   plex: 'Demande à Home Assistant de lancer le film par son titre, dans sa bibliothèque Plex. '
-    + 'Il faut que l’intégration Plex de Home Assistant soit installée et connectée à ton serveur.',
-  lien: 'Ouvre l’application Plex directement sur le film, par un lien. À essayer : '
-    + 'Plex doit être installé sur le boîtier, et tous les modèles ne suivent pas le lien.',
-  app: 'Ouvre l’application Plex sans choisir le film : Trouveur affiche alors le titre à chercher.',
+    + 'Il faut l’intégration Plex de Home Assistant et un lecteur de type Chromecast : '
+    + 'Android TV Remote n’accepte pas cette commande.',
 };
 
 function aideLancement() {
@@ -2012,6 +2024,7 @@ async function remplirTele(reglage) {
   choix.appendChild(new Option('Aucun', ''));
   $('tv-state').textContent = '';
   $('set-tv-method').value = reglage.method;
+  $('set-tv-confirm').checked = reglage.confirm_on;
   aideLancement();
 
   const etat = $('tv-availability');
@@ -2054,6 +2067,7 @@ function lireTele() {
     player: choix.value,
     player_name: choix.value && option ? (option.dataset.name || option.textContent) : '',
     method: $('set-tv-method').value,
+    confirm_on: $('set-tv-confirm').checked,
   };
 }
 

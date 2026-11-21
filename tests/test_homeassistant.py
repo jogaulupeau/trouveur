@@ -40,6 +40,8 @@ ETATS = {
     "media_player.autre": {
         "state": "playing", "attributes": {"friendly_name": "Autre", "media_title": "Un film"}},
     "media_player.absent": {"state": "unavailable", "attributes": {"friendly_name": "Absent"}},
+    # Android TV Remote : allume ou eteint, jamais « playing ».
+    "media_player.boitier": {"state": "on", "attributes": {"friendly_name": "Boitier"}},
     "light.salon": {"state": "on", "attributes": {"friendly_name": "Salon"}},
 }
 APPELS: list[dict] = []
@@ -92,7 +94,8 @@ os.environ["TROUVEUR_HA_URL"] = "http://127.0.0.1:%d/api" % serveur.server_addre
 os.environ["TROUVEUR_HA_TOKEN"] = JETON
 os.environ.pop("SUPERVISOR_TOKEN", None)
 
-FILM = {"title": "L'Été meurtrier", "year": 1983, "library": "Films", "rating_key": "4242"}
+FILM = {"title": "L'Été meurtrier", "year": 1983, "library": "Films", "rating_key": "4242",
+        "web_url": "https://app.plex.tv/desktop/#!/server/MACHINE123/details?key=%2Flibrary%2Fmetadata%2F4242"}
 
 
 def client(methode="plex", player="media_player.lecteur_salon"):
@@ -104,10 +107,11 @@ def client(methode="plex", player="media_player.lecteur_salon"):
 lecteurs = client().players()
 check("seuls les lecteurs multimedia sont listes",
       [p["entity_id"] for p in lecteurs] == [
-          "media_player.absent", "media_player.autre", "media_player.lecteur_salon"],
+          "media_player.absent", "media_player.autre", "media_player.boitier",
+          "media_player.lecteur_salon"],
       str(lecteurs))
 check("le nom affiche est le nom convivial de Home Assistant",
-      lecteurs[2]["name"] == "Lecteur du salon", str(lecteurs[2]))
+      lecteurs[3]["name"] == "Lecteur du salon", str(lecteurs[3]))
 
 fiche = client().describe()
 check("la description montre l'etat et les attributs utiles",
@@ -152,6 +156,22 @@ check("le lien profond porte l'identifiant du serveur et du film",
       corps["media_content_type"] == "url" and corps["media_content_id"] ==
       "plex://server://MACHINE123/com.plexapp.plugins.library/library/metadata/4242", str(corps))
 
+# -- lien web : le lien https de Plex ----------------------------------------------------------
+APPELS.clear()
+client("lien_web").launch(FILM, "MACHINE123")
+corps = APPELS[0]["corps"]
+check("« lien_web » envoie le lien https de Plex en type url",
+      corps["media_content_type"] == "url" and corps["media_content_id"] == FILM["web_url"], str(corps))
+
+# -- la methode par defaut convient a Android TV Remote (app, url, channel) ------------------------
+par_defaut = ha.HomeAssistant({"homeassistant": {"player": "media_player.lecteur_salon"}})
+check("sans reglage, la methode est le lien Plex, pas la commande Chromecast",
+      par_defaut.method == "lien" and par_defaut.confirm_on is True, par_defaut.method)
+check("une methode inconnue retombe sur le lien",
+      ha.HomeAssistant({"homeassistant": {"method": "n-importe-quoi"}}).method == "lien")
+check("« plex » seul n'est pas un type accepte par Android TV Remote : il n'est pas le defaut",
+      "plex" in ha.METHODES and ha.METHODES[0] != "plex")
+
 # -- app : ouvre seulement Plex -----------------------------------------------------------------
 APPELS.clear()
 client("app").launch(FILM, None)
@@ -168,6 +188,28 @@ check("un lecteur qui lit quelque chose demande confirmation",
 check("et rien n'est envoye tant qu'on n'a pas confirme", APPELS == [], str(APPELS))
 reponse = occupe.launch(FILM, None, confirm=True)
 check("confirme, la commande part", reponse["status"] == "ok" and len(APPELS) == 1, str(reponse))
+
+# -- un boitier Android TV Remote : allume, sans savoir s'il lit quelque chose ------------------
+APPELS.clear()
+boitier = ha.HomeAssistant({"homeassistant": {"player": "media_player.boitier", "method": "lien"}})
+reponse = boitier.launch(FILM, "MACHINE123")
+check("un lecteur allume demande confirmation, meme sans titre en cours",
+      reponse["status"] == "busy" and reponse["reason"] == "allume" and reponse["title"] is None,
+      str(reponse))
+check("et rien n'est envoye tant qu'on n'a pas confirme", APPELS == [], str(APPELS))
+check("confirme, la commande part", boitier.launch(FILM, "MACHINE123", confirm=True)["status"] == "ok"
+      and len(APPELS) == 1)
+
+APPELS.clear()
+libre = ha.HomeAssistant({"homeassistant": {
+    "player": "media_player.boitier", "method": "lien", "confirm_on": False}})
+check("avec la case decochee, un lecteur allume est commande directement",
+      libre.launch(FILM, "MACHINE123")["status"] == "ok" and len(APPELS) == 1)
+APPELS.clear()
+reponse = ha.HomeAssistant({"homeassistant": {
+    "player": "media_player.autre", "method": "lien", "confirm_on": False}}).launch(FILM, "M")
+check("la case decochee ne desactive pas la protection d'un lecteur qui lit",
+      reponse["status"] == "busy" and reponse["reason"] == "lecture" and APPELS == [], str(reponse))
 
 # -- un lecteur injoignable ------------------------------------------------------------------
 APPELS.clear()

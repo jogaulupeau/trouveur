@@ -162,14 +162,17 @@ s'en sert que pour envoyer la commande de lecture au lecteur choisi.
 Dans **Réglages → Télé** :
 
 1. **Lecteur** : la liste vient de Home Assistant, rien n'est supposé.
-2. **Façon de lancer** : *Chromecast* (par l'intégration Plex de Home Assistant,
-   qui doit être installée et connectée à ton serveur), *Android TV par un lien*
-   vers l'application Plex, ou *ouvrir seulement l'application Plex*.
+2. **Façon de lancer** : pour l'intégration **Android TV Remote**, *lien Plex vers
+   le film* (essayer en premier), *lien web de Plex*, ou *ouvrir seulement
+   l'application Plex* (le titre à chercher s'affiche alors). *Chromecast* passe
+   par l'intégration Plex de Home Assistant et ne fonctionne pas avec Android TV
+   Remote.
 3. **Voir ce que l'appareil annonce** : l'état et les applications que Home
    Assistant connaît pour ce lecteur.
-
-Si quelqu'un regarde déjà quelque chose sur ce lecteur, le bouton demande
-confirmation (« Remplacer ») avant d'envoyer quoi que ce soit. Quand le lancement
+4. **Demander confirmation quand le lecteur est allumé** (cochée par défaut) :
+   Android TV Remote ne dit pas si quelque chose est en cours de lecture, seulement
+   si le lecteur est allumé. Un lecteur allumé demande donc un second clic avant le
+   lancement. Quand le lancement
 échoue, le message de Home Assistant s'affiche tel quel, avec le titre à chercher
 dans Plex.
 

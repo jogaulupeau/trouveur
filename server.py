@@ -772,6 +772,7 @@ def _lancer_sur_tele(corps: dict[str, Any]) -> dict[str, Any]:
     film = {
         "title": entree["title"], "year": entree["year"],
         "library": entree.get("library", ""), "rating_key": entree.get("rating_key", ""),
+        "web_url": PLEX.web_url(entree) if HA.method == "lien_web" else None,
     }
     machine = PLEX.machine_id() if HA.method == "lien" else None
     resultat = HA.launch(film, machine, confirm=bool(corps.get("confirm")))
