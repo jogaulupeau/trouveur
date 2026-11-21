@@ -45,13 +45,15 @@ const state = {
 /* Les billets : une source de visionnage par billet, du plus immédiat au plus
  * long. Partagés par « Ce soir » et par la fiche du film. */
 
-function meilleurTorrent(torrents) {
-  // 1080p et version française d'abord, puis le plus alimenté.
+/** Du plus probable au moins probable : 1080p et version française d'abord,
+ *  puis le plus alimenté. C'est un ordre, pas un choix : toutes les versions
+ *  restent proposées. */
+function trierTorrents(torrents) {
   const rang = (t) => {
     const tags = t.tags || {};
     return (/1080/.test(tags.resolution || '') ? 2 : 0) + (tags.language ? 1 : 0);
   };
-  return [...torrents].sort((a, b) => rang(b) - rang(a) || (b.seeders || 0) - (a.seeders || 0))[0];
+  return [...torrents].sort((a, b) => rang(b) - rang(a) || (b.seeders || 0) - (a.seeders || 0));
 }
 
 /** Un billet. Avec `action.href` c'est un lien, avec `action.faire` un bouton,
@@ -82,26 +84,19 @@ function billet({ petit, grand, action, info }) {
   return racine;
 }
 
-/** Le billet du meilleur torrent : 1080p et version française d'abord. */
-function billetTorrent(liste) {
-  const meilleur = meilleurTorrent(liste);
+/** Le billet « à télécharger ». Il dit combien de versions existent et ouvre
+ *  leur liste : le choix de la version reste à l'utilisateur, jamais au billet. */
+function billetTorrent(liste, surChoisir) {
+  const n = liste.length;
+  const meilleur = trierTorrents(liste)[0];
   const tags = meilleur.tags || {};
-  const resume = [tags.resolution, tags.language, meilleur.size ? formatSize(meilleur.size) : null]
-    .filter(Boolean).join(', ');
-  let action = null;
-  if (meilleur.slug && state.deluge.enabled) {
-    action = { texte: 'Envoyer à Deluge', faire: (bouton) => envoyerVersDeluge(meilleur.slug, bouton) };
-  } else if (meilleur.slug) {
-    action = { texte: 'Télécharger', href: apiUrl(`api/torrent?slug=${encodeURIComponent(meilleur.slug)}`) };
-  }
+  const apercu = [tags.resolution, tags.language].filter(Boolean).join(', ');
   return billet({
-    petit: `À télécharger, ${liste.length} version${liste.length > 1 ? 's' : ''}`,
-    grand: resume || meilleur.name,
-    action,
-    info: meilleur.name,
+    petit: `À télécharger sur ${state.tracker.name}`,
+    grand: `${n} version${n > 1 ? 's' : ''}${apercu ? `, dès ${apercu}` : ''}`,
+    action: surChoisir ? { texte: 'Choisir', faire: surChoisir } : null,
   });
 }
-
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -1443,7 +1438,6 @@ function section(title, content) {
 function paintSheetWhere(movie) {
   const slot = $('where-slot');
   if (!slot || Number(slot.dataset.id) !== movie.id) return;
-  const etaitOuvert = Boolean(slot.querySelector('details[open]'));
   slot.textContent = '';
 
   const dispo = state.avail.get(movie.id) || {};
@@ -1495,7 +1489,12 @@ function paintSheetWhere(movie) {
         petit: 'À télécharger', grand: 'Tracker injoignable', info: resultat.error,
       }));
     } else if ((resultat.torrents || []).length) {
-      billets.appendChild(billetTorrent(resultat.torrents));
+      billets.appendChild(billetTorrent(resultat.torrents, () => {
+        const liste = slot.querySelector('.versions');
+        if (!liste) return;
+        liste.open = true;
+        liste.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }));
     }
   }
 
@@ -1508,16 +1507,19 @@ function paintSheetWhere(movie) {
   billets.firstElementChild.classList.add('is-best');
   slot.appendChild(billets);
   notes.forEach((texte) => slot.appendChild(el('p', 'muted where-note', texte)));
-  if (state.tracker.enabled) slot.appendChild(renderVersions(movie, etaitOuvert));
+  if (state.tracker.enabled) slot.appendChild(renderVersions(movie, slot, Boolean(plex)));
 }
 
-/** Toutes les versions du tracker, repliées : le billet montre déjà la meilleure. */
-function renderVersions(movie, ouvert) {
+/** Les versions du tracker. Ouvertes d'emblée quand c'est la seule façon de voir
+ *  le film : le choix doit se voir, pas se chercher. Repliées pour un film déjà
+ *  sur Plex, où le tracker n'est interrogé que si on le demande. Un choix fait à
+ *  la main l'emporte, y compris quand la fiche se repeint. */
+function renderVersions(movie, slot, surPlex) {
   const boite = el('details', 'versions');
   const resultat = state.torrentCache.get(movie.id);
   const n = resultat && !resultat.error ? (resultat.torrents || []).length : 0;
   boite.appendChild(el('summary', null, n
-    ? `Toutes les versions sur ${state.tracker.name} (${n})`
+    ? `Versions sur ${state.tracker.name} (${n})`
     : `Versions sur ${state.tracker.name}`));
   const corps = el('div', 'versions-body');
   boite.appendChild(corps);
@@ -1530,8 +1532,14 @@ function renderVersions(movie, ouvert) {
     corps.textContent = '';
     corps.appendChild(renderTorrents(r));
   };
-  boite.addEventListener('toggle', () => { if (boite.open) remplir(); });
-  if (ouvert) { boite.open = true; }
+  boite.addEventListener('toggle', () => {
+    slot.dataset.versions = boite.open ? 'ouvert' : 'ferme';
+    if (boite.open) remplir();
+  });
+
+  const voulu = slot.dataset.versions;
+  const ouvert = voulu ? voulu === 'ouvert' : !surPlex && n > 0;
+  if (ouvert) { boite.open = true; remplir(); }
   return boite;
 }
 
@@ -1713,7 +1721,7 @@ function renderTorrents(result) {
     ));
   }
 
-  torrents.slice(0, 12).forEach((torrent) => {
+  const lignes = trierTorrents(torrents).map((torrent) => {
     const row = el('div', 'torrent');
 
     const left = el('div');
@@ -1761,11 +1769,22 @@ function renderTorrents(result) {
     }
     row.appendChild(stats);
 
-    box.appendChild(row);
+    return row;
   });
 
-  if (torrents.length > 12) {
-    box.appendChild(el('p', 'muted', `… et ${torrents.length - 12} autres résultats.`));
+  // Douze d'abord pour ne pas noyer la fiche, mais rien n'est caché : un bouton
+  // montre tout le reste.
+  lignes.slice(0, 12).forEach((row) => box.appendChild(row));
+  if (lignes.length > 12) {
+    const reste = lignes.slice(12);
+    const plus = el('button', 'btn btn-ghost torrent-more',
+      `Afficher les ${reste.length} autres versions`);
+    plus.type = 'button';
+    plus.addEventListener('click', () => {
+      reste.forEach((row) => box.insertBefore(row, plus));
+      plus.remove();
+    });
+    box.appendChild(plus);
   }
   return box;
 }

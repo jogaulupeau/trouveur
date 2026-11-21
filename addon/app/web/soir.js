@@ -460,6 +460,9 @@ function soirRenderHero(film) {
   const billets = el('div', 'soir-tickets');
   billets.id = 'soir-tickets';
   copie.appendChild(billets);
+  const versions = el('div', 'soir-versions');
+  versions.id = 'soir-versions';
+  copie.appendChild(versions);
 
   const actions = el('div', 'soir-actions');
   const pas = soirBouton('Pas ce soir', 'is-main', soirPasCeSoir);
@@ -571,7 +574,7 @@ function soirPeindreBillets(film) {
         petit: 'À télécharger', grand: 'Tracker injoignable', info: resultat.error,
       }));
     } else if ((resultat.torrents || []).length) {
-      billets.push(billetTorrent(resultat.torrents));
+      billets.push(billetTorrent(resultat.torrents, (bouton) => soirVersions(film, bouton)));
     }
   }
 
@@ -582,6 +585,24 @@ function soirPeindreBillets(film) {
       : { petit: 'Où le regarder', grand: 'Pas encore disponible chez toi' }));
   }
   billets.forEach((b, i) => { if (i === 0) b.classList.add('is-best'); box.appendChild(b); });
+}
+
+/** Déplie la liste des versions du tracker sous les billets : c'est là qu'on
+ *  choisit laquelle télécharger, le billet ne le fait pas à notre place. */
+function soirVersions(film, bouton) {
+  const boite = $('soir-versions');
+  if (!boite || !soir.hero || soir.hero.id !== film.id) return;
+  if (boite.childElementCount) {
+    boite.textContent = '';
+    if (bouton) bouton.textContent = 'Choisir';
+    return;
+  }
+  const resultat = state.torrentCache.get(film.id);
+  if (!resultat) return;
+  boite.appendChild(el('h3', 'soir-versions-title', `Versions sur ${state.tracker.name}`));
+  boite.appendChild(renderTorrents(resultat));
+  if (bouton) bouton.textContent = 'Fermer';
+  boite.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function soirRenderOthers() {

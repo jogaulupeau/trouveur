@@ -1654,6 +1654,11 @@ a.stub:hover, .stub:has(button:hover) { filter: brightness(1.1); }
 .stub-go:disabled { cursor: progress; opacity: 0.8; }
 .stub-go.is-failed { text-decoration: underline wavy; }
 
+.soir-versions { max-width: 760px; margin-top: 18px; }
+.soir-versions:empty { display: none; }
+.soir-versions-title { margin: 0 0 12px; font-size: 20px; font-weight: 700; }
+.torrent-more { align-self: flex-start; margin-top: 4px; }
+
 .soir-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
 .soir-btn {
   min-height: 46px;

@@ -227,9 +227,10 @@ Chaque source de visionnage est un **billet**, du plus immédiat au plus long :
 - **Abonnement** : la plateforme qui inclut le film. TMDB ne donne pas de lien
   direct vers le film chez la plateforme, le billet informe donc sans bouton.
 - **Torrent** : seulement quand le film n'est pas sur Plex, même s'il est aussi
-  en abonnement. Le tracker n'est interrogé que dans ce cas. Le billet montre la
-  meilleure version (1080p et version française d'abord, puis la plus alimentée)
-  et *Envoyer à Deluge* quand Deluge est configuré, sinon le fichier `.torrent`.
+  en abonnement. Le tracker n'est interrogé que dans ce cas. Le billet annonce le
+  nombre de versions trouvées et **ne choisit rien** : *Choisir* déplie la liste
+  sous les billets, et *Deluge* ou `.torrent` s'appliquent à la version sur
+  laquelle on clique.
 
 Le fond de la page prend la couleur dominante de l'affiche. Cela suppose que
 TMDB autorise la lecture des pixels de ses images depuis le navigateur ; si ce
@@ -374,9 +375,13 @@ externes viennent après, dans cet ordre.
   une note quand le rapprochement s'est fait par titre faute d'identifiant TMDB.
 - **Abonnement** : tous tes services qui l'incluent. Si le film n'est chez aucun
   des tiens mais existe en streaming ailleurs, une note le dit.
-- **Torrent** : le meilleur billet (1080p et version française d'abord), et
-  *Toutes les versions* repliées dessous. Pour un film déjà sur Plex le tracker
-  n'est pas interrogé à l'ouverture : la liste se charge si on la déplie.
+- **Torrent** : le billet annonce le nombre de versions, et la liste complète est
+  ouverte dessous quand le tracker est la seule piste. Pour un film déjà sur Plex
+  elle reste repliée et le tracker n'est interrogé que si on la déplie. Le choix
+  d'ouvrir ou de fermer la liste est respecté quand la fiche se repeint.
+- **Toutes les versions sont proposées**, jamais une seule. Elles sont triées
+  (1080p et version française d'abord, puis les plus alimentées) : c'est un
+  ordre, pas un choix. Douze sont affichées, un bouton montre les autres.
 - **La bande-annonce ne se charge qu'au clic.** Rien n'est demandé à YouTube
   tant qu'on ne l'a pas lancée.
 - **Les trois gestes** (*À voir*, *Vu*, *Ne plus proposer*) restent collés en bas
