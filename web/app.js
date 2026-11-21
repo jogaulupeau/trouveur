@@ -15,7 +15,7 @@ const state = {
   seen: new Set(),          // ids TMDB des films déjà vus
   watchlist: new Set(),     // ids TMDB des films à voir
   ignored: new Set(),       // films écartés, plus jamais proposés
-  screen: 'soir',           // soir | parcourir | reglages
+  screen: 'soir',           // soir | parcourir | liste | reglages
   prevScreen: 'soir',       // où revenir en quittant les réglages
   providerList: [],         // plateformes de la région (Plex en tête, s'il est connecté)
   mode: 'decouverte',       // decouverte | foryou | recherche | similaires | watchlist | seen | ignored
@@ -24,6 +24,7 @@ const state = {
   plex: { enabled: false },
   deluge: { enabled: false },
   avail: new Map(),         // id TMDB -> où regarder le film (Plex, plateformes)
+  availKnown: new Set(),    // films dont les disponibilités ont été demandées (même sans résultat)
   lastMovies: [],
   query: null,          // requête figée au lancement de la recherche
   nextPage: 1,
@@ -139,23 +140,35 @@ async function bootstrap() {
 
 /* ------------------------------- navigation ------------------------------ */
 
-const ECRANS = ['soir', 'parcourir', 'reglages'];
+// « Parcourir » et « Ma liste » partagent la même grille : l'un montre des
+// films à découvrir, l'autre ceux qu'on a déjà triés. Seuls les onglets, le
+// panneau de filtres et les titres changent.
+const ECRANS = {
+  soir: 'screen-soir',
+  parcourir: 'screen-parcourir',
+  liste: 'screen-parcourir',
+  reglages: 'screen-reglages',
+};
+const MODES_LISTE = ['watchlist', 'seen', 'ignored'];
 
 function showScreen(name) {
   if (name === 'reglages' && state.screen !== 'reglages') state.prevScreen = state.screen;
   state.screen = name;
-  ECRANS.forEach((ecran) => { $(`screen-${ecran}`).hidden = ecran !== name; });
+  [...new Set(Object.values(ECRANS))].forEach((id) => { $(id).hidden = id !== ECRANS[name]; });
+  const liste = name === 'liste';
+  $('screen-parcourir').classList.toggle('is-liste', liste);
+  $('panel').hidden = liste;
+  $('open-filters').hidden = liste;
+  $('tabs').hidden = liste;
+  $('list-tabs').hidden = !liste;
   document.body.dataset.screen = name;
   updateNav();
   window.scrollTo(0, 0);
 }
 
-/** « Ma liste » n'est pas un écran : c'est « Parcourir » ouvert sur les films à voir. */
 function updateNav() {
-  const courant = state.screen === 'parcourir' && state.mode === 'watchlist'
-    ? 'liste' : state.screen;
   [...$('mainnav').children].forEach((bouton) => {
-    if (bouton.dataset.nav === courant) bouton.setAttribute('aria-current', 'page');
+    if (bouton.dataset.nav === state.screen) bouton.setAttribute('aria-current', 'page');
     else bouton.removeAttribute('aria-current');
   });
 }
@@ -163,10 +176,14 @@ function updateNav() {
 async function goTo(cible) {
   if (cible === 'reglages') { openSettings(); return; }
   if (cible === 'soir') { showScreen('soir'); return; }
+  if (cible === 'liste') {
+    await showList(MODES_LISTE.includes(state.mode) ? state.mode : 'watchlist');
+    return;
+  }
   showScreen('parcourir');
-  if (cible === 'liste') { await showList('watchlist'); return; }
-  // Première visite : mieux vaut montrer des films que demander de remplir un formulaire.
-  if (state.mode === 'decouverte' && !state.lastMovies.length) await runSearch();
+  // Première visite, ou retour depuis une liste : mieux vaut montrer des films
+  // que demander de remplir un formulaire.
+  if (MODES_LISTE.includes(state.mode) || !state.lastMovies.length) await runSearch();
 }
 
 /* ----------------------------- films déjà vus ---------------------------- */
@@ -186,6 +203,7 @@ async function toggleSeen(movie) {
   state.seen[wasSeen ? 'delete' : 'add'](movie.id);
   paintSeen(movie.id);
   renderSeenCount();
+  renderTabCounts();
 
   try {
     if (wasSeen) {
@@ -203,6 +221,7 @@ async function toggleSeen(movie) {
     state.seen[wasSeen ? 'add' : 'delete'](movie.id);
     paintSeen(movie.id);
     renderSeenCount();
+    renderTabCounts();
     showNotice(`Impossible d’enregistrer : ${error.message}`, true);
   }
 }
@@ -215,8 +234,10 @@ function paintSeen(movieId) {
     if (!card._movie || card._movie.id !== movieId) return;
     card.classList.toggle('is-seen', isSeen);
     const button = card.querySelector('.card-seen');
+    button.textContent = isSeen ? 'Déjà vu' : 'Vu';
     button.setAttribute('aria-pressed', String(isSeen));
     button.title = isSeen ? 'Marqué comme vu — cliquer pour annuler' : 'Marquer comme vu';
+    paintState(card);
   });
 
   const sheetButton = document.querySelector('.sheet-seen');
@@ -226,6 +247,17 @@ function paintSeen(movieId) {
     sheetButton.querySelector('.sheet-seen-text').textContent = isSeen
       ? 'Déjà vu' : 'Marquer comme vu';
   }
+}
+
+/** Le marqueur posé sur l'affiche : « Vu » ou « À voir », visible sans survol. */
+function paintState(card) {
+  const marqueur = card.querySelector('.card-state');
+  const id = card._movie && card._movie.id;
+  const vu = state.seen.has(id);
+  const texte = vu ? 'Vu' : state.watchlist.has(id) ? 'À voir' : '';
+  marqueur.textContent = texte;
+  marqueur.hidden = !texte;
+  marqueur.classList.toggle('is-seen', vu);
 }
 
 /* ------------------------------ liste à voir ----------------------------- */
@@ -272,8 +304,10 @@ function paintWant(movieId) {
     if (!card._movie || card._movie.id !== movieId) return;
     const button = card.querySelector('.card-want');
     button.classList.toggle('is-on', wanted);
+    button.textContent = wanted ? 'Dans ma liste' : 'À voir';
     button.setAttribute('aria-pressed', String(wanted));
     button.title = wanted ? 'Dans ta liste à voir — cliquer pour retirer' : 'Ajouter à ma liste à voir';
+    paintState(card);
   });
 
   const sheetButton = document.querySelector('.sheet-want');
@@ -325,7 +359,7 @@ async function toggleIgnore(movie) {
 /* --------------------------- modes d'affichage --------------------------- */
 
 const TITRES = {
-  decouverte: 'Vos propositions',
+  decouverte: 'Propositions',
   foryou: 'Pour toi',
   cinema: 'Au cinéma',
   recherche: 'Résultats de recherche',
@@ -343,11 +377,10 @@ function setMode(mode) {
   } else {
     $('results-title').textContent = TITRES[mode];
   }
-  $('back-to-criteria').hidden = mode === 'decouverte';
-  [...$('tabs').children].forEach((tab) => {
+  $('back-to-criteria').hidden = mode === 'decouverte' || MODES_LISTE.includes(mode);
+  [...$('tabs').children, ...$('list-tabs').children].forEach((tab) => {
     tab.classList.toggle('on', tab.dataset.view === mode);
   });
-  updateNav();
 }
 
 /** Vide la grille et remet la pagination à zéro, sans changer les critères. */
@@ -408,6 +441,7 @@ async function showCinema() {
 async function showSimilar(movie) {
   state.similarTo = { id: movie.id, title: movie.title };
   closeSheet();
+  showScreen('parcourir');
   resetGrid();
   setMode('similaires');
   window.scrollTo(0, 0);
@@ -419,6 +453,7 @@ async function showSimilar(movie) {
 
 /** Affiche une liste enregistrée (à voir / déjà vus) : pas de pagination. */
 async function showList(mode) {
+  if (state.screen !== 'liste') showScreen('liste');
   resetGrid();
   setMode(mode);
   // La première ouverture reconstitue les cartes depuis TMDB : sur une longue
@@ -438,8 +473,8 @@ async function showList(mode) {
     $('empty').hidden = movies.length > 0;
     if (!movies.length) {
       showNotice({
-        watchlist: 'Ta liste à voir est vide. Le signet sur une affiche y ajoute un film.',
-        ignored: 'Aucun film ignoré. La croix sur une affiche écarte un film des propositions.',
+        watchlist: 'Ta liste à voir est vide. « À voir », au survol d’une affiche, y ajoute un film.',
+        ignored: 'Aucun film ignoré. « Ignorer », au survol d’une affiche, écarte un film des propositions.',
       }[mode] || 'Aucun film marqué comme vu pour l’instant.', false);
     }
   } catch (error) {
@@ -621,7 +656,10 @@ function bindEvents() {
     if (vue === 'decouverte') { runSearch(); }
     else if (vue === 'foryou') { showForYou(); }
     else if (vue === 'cinema') { showCinema(); }
-    else { showList(vue); }
+  });
+  $('list-tabs').addEventListener('click', (event) => {
+    const tab = event.target.closest('.tab');
+    if (tab) showList(tab.dataset.view);
   });
 
   $('back-to-criteria').addEventListener('click', () => runSearch());
@@ -925,7 +963,7 @@ function renderMoreState() {
 
   if (state.loading) {
     label.textContent = '';
-  } else if (!state.hasMore && state.lastMovies.length) {
+  } else if (!state.hasMore && state.lastMovies.length && !MODES_LISTE.includes(state.mode)) {
     label.textContent = 'Tu as vu toutes les propositions pour ces critères.';
   } else {
     label.textContent = '';
@@ -976,10 +1014,6 @@ function appendCards(movies) {
       card.querySelector('.card-body').appendChild(why);
     }
 
-    const badge = card.querySelector('.card-torrent');
-    if (!state.tracker.enabled) badge.classList.add('is-hidden');
-    if (!state.tracker.enabled) badge.classList.add('is-hidden');
-
     const seenButton = card.querySelector('.card-seen');
     seenButton.addEventListener('click', (event) => {
       event.stopPropagation();   // sans cela, la fiche s'ouvre aussi
@@ -993,6 +1027,7 @@ function appendCards(movies) {
     });
 
     const hideButton = card.querySelector('.card-hide');
+    hideButton.textContent = state.ignored.has(movie.id) ? 'Ne plus ignorer' : 'Ignorer';
     hideButton.title = state.ignored.has(movie.id)
       ? 'Ne plus ignorer ce film' : 'Ne plus me proposer ce film';
     hideButton.addEventListener('click', (event) => {
@@ -1010,7 +1045,7 @@ function appendCards(movies) {
     nouvelles.push(card);
     paintSeen(movie.id);
     paintWant(movie.id);
-    paintAvailability(card);
+    paintWhere(card);
   });
 
   // Seules les nouvelles cartes sont interrogées : les précédentes le sont déjà.
@@ -1040,45 +1075,53 @@ async function loadAvailability(movies) {
   Object.entries(data.items || {}).forEach(([id, info]) => {
     state.avail.set(Number(id), info);
   });
-  [...$('grid').children].forEach((card) => paintAvailability(card));
+  movies.forEach((movie) => state.availKnown.add(movie.id));
+  [...$('grid').children].forEach((card) => paintWhere(card));
 }
 
-/** Dessine les badges « où regarder » : le serveur Plex d'abord, puis les
- *  plateformes. Plex passe en premier : c'est disponible tout de suite et sans
- *  abonnement supplémentaire. */
-function paintAvailability(card) {
-  const box = card.querySelector('.card-avail');
-  if (!box) return;
-  const info = card._movie && state.avail.get(card._movie.id);
+/** La ligne « où regarder » sous le titre : une seule, la plus immédiate.
+ *  Plex d'abord (disponible tout de suite, sans abonnement de plus), puis un
+ *  abonnement, puis le tracker. Le détail de chaque source est dans la fiche. */
+function paintWhere(card) {
+  const box = card.querySelector('.card-where');
+  const movie = card._movie;
+  if (!box || !movie) return;
   box.textContent = '';
-  if (!info) return;
+  box.title = '';
+  const info = state.avail.get(movie.id);
+  const connu = state.availKnown.has(movie.id);
+  let classe = null;
+  let texte = '';
 
-  if (info.plex) {
-    const badge = el('span', 'avail-badge is-plex',
-      info.plex.resolution ? `Plex · ${info.plex.resolution}` : 'Plex');
-    badge.title = 'Déjà sur ton serveur Plex';
-    box.appendChild(badge);
+  if (info && info.plex) {
+    classe = 'is-plex';
+    texte = info.plex.resolution ? `Sur ton Plex, ${info.plex.resolution}` : 'Sur ton Plex';
+  } else if (info && (info.providers || []).length) {
+    classe = 'is-stream';
+    texte = `Inclus avec ${info.providers[0].name}`;
+  } else if (state.tracker.enabled) {
+    // Une erreur du tracker ne dit rien du film : mieux vaut ne rien afficher
+    // que « pas disponible » à tort. La fiche montre le détail de l'erreur.
+    const resultat = state.torrentCache.get(movie.id);
+    if (resultat && !resultat.error && !resultat.disabled) {
+      const n = (resultat.torrents || []).length;
+      if (n) {
+        classe = 'is-tor';
+        texte = `${n >= 20 ? '20+' : n} version${n > 1 ? 's' : ''} à télécharger`;
+      } else if (connu) {
+        classe = 'is-none';
+        texte = 'Pas sur tes services';
+      }
+    }
+  } else if (connu) {
+    classe = 'is-none';
+    texte = 'Pas sur tes services';
   }
 
-  (info.providers || []).forEach((provider) => {
-    const badge = el('span', `avail-badge${provider.logo ? ' is-logo' : ''}`);
-    badge.title = `Inclus avec ${provider.name}`;
-    if (provider.logo) {
-      const logo = document.createElement('img');
-      logo.alt = provider.name;
-      // Un logo qui n'arrive pas laisserait un carré vide, indéchiffrable :
-      // on retombe alors sur le nom du service.
-      logo.addEventListener('error', () => {
-        badge.classList.remove('is-logo');
-        badge.textContent = provider.name;
-      });
-      logo.src = provider.logo;
-      badge.appendChild(logo);
-    } else {
-      badge.textContent = provider.name;
-    }
-    box.appendChild(badge);
-  });
+  if (!texte) return;
+  box.appendChild(el('i', `dot ${classe}`));
+  box.appendChild(document.createTextNode(texte));
+  box.title = texte;
 }
 
 /* -------------------------------- torrents ------------------------------- */
@@ -1111,32 +1154,11 @@ function queueTorrentChecks(cards) {
   const worker = async () => {
     while (pending.length) {
       const card = pending.shift();
-      const result = await fetchTorrents(card._movie);
-      paintBadge(card.querySelector('.card-torrent'), result);
+      await fetchTorrents(card._movie);
+      paintWhere(card);
     }
   };
   for (let i = 0; i < 3; i += 1) worker();
-}
-
-function paintBadge(badge, result) {
-  badge.classList.remove('is-pending');
-  if (result.disabled) { badge.classList.add('is-hidden'); return; }
-  if (result.error) {
-    badge.classList.add('is-no');
-    badge.textContent = '!';
-    badge.title = result.error;
-    return;
-  }
-  const count = (result.torrents || []).length;
-  if (count) {
-    badge.classList.add('is-yes');
-    badge.textContent = count >= 20 ? '20+' : String(count);
-    badge.title = `${count} torrent${count > 1 ? 's' : ''} disponible${count > 1 ? 's' : ''}`;
-  } else {
-    badge.classList.add('is-no');
-    badge.textContent = '0';
-    badge.title = 'Aucun torrent trouvé';
-  }
 }
 
 /* ---------------------------------- fiche -------------------------------- */
@@ -2060,6 +2082,7 @@ async function plexRefreshNow() {
       etat.className = 'settings-state is-ok';
       // Les badges déjà dessinés viennent de l'ancien inventaire.
       state.avail.clear();
+      state.availKnown.clear();
       const visibles = [...$('grid').children]
         .map((carte) => carte._movie).filter(Boolean);
       if (visibles.length) await loadAvailability(visibles);

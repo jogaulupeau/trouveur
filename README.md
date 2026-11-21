@@ -134,17 +134,22 @@ badge. Un badge « Canal+ » quand on n'y est pas abonné n'apprend rien.
 Laisser la liste vide propose tous les services de la région. **Ton serveur Plex
 est indépendant de ce réglage** : il est toujours proposé et toujours badgé.
 
-### Badges sur les affiches
+### La ligne « où regarder »
 
-Chaque affiche porte des badges « où regarder » : le serveur Plex d'abord (en
-orange, disponible tout de suite), puis les logos des plateformes, trois au
-maximum. Ils se remplissent après l'affichage de la grille, car ils coûtent un
-appel TMDB par film — mis en cache 24 h.
+Sous chaque titre, une seule ligne dit où regarder le film, la plus immédiate :
+le serveur Plex d'abord (« Sur ton Plex, 1080p »), puis un abonnement
+(« Inclus avec Netflix »), puis le tracker (« 3 versions à télécharger »), sinon
+« Pas sur tes services ». Elle se remplit après l'affichage de la grille, car
+elle coûte un appel TMDB par film — mis en cache 24 h. La fiche détaille chaque
+source.
+
+Une erreur du tracker n'affiche rien : elle ne dit rien du film, et « pas
+disponible » serait faux. Le détail de l'erreur est dans la fiche.
 
 TMDB liste chaque *offre commerciale* séparément : « Netflix » et « Netflix
 Standard with Ads », « Paramount Plus », « Paramount+ Amazon Channel » et
-« Paramount Plus Premium ». Trois badges pour un seul service n'apprennent rien,
-donc les variantes d'un même service sont fusionnées et seule l'offre principale
+« Paramount Plus Premium ». Trois mentions pour un seul service n'apprennent
+rien, donc les variantes d'un même service sont fusionnées et seule l'offre principale
 est retenue.
 
 Un piège évité : TMDB expose son propre fournisseur « Plex » (identifiant 538),
@@ -153,8 +158,8 @@ est retiré de la liste pour ne pas prêter à confusion.
 
 ## Serveur Plex
 
-Une pastille orange sur l'affiche indique que le film est déjà dans ta
-bibliothèque Plex, et la fiche détaille la version disponible (résolution,
+La ligne « Sur ton Plex » sous l'affiche indique que le film est déjà dans ta
+bibliothèque, et la fiche détaille la version disponible (résolution,
 codec, conteneur, taille) avec un lien pour l'ouvrir dans Plex.
 
 ### Connexion
@@ -343,6 +348,21 @@ une erreur 4xx non plus, sauf `429`, dont l'en-tête `Retry-After` est respecté
 Enfin, un échec ne relance plus le défilement automatique en rafale : le bouton
 **Afficher plus** reste, et c'est un geste délibéré qui réessaie.
 
+## Parcourir et Ma liste
+
+Deux écrans, une même grille.
+
+**Parcourir** cherche : les onglets *Propositions*, *Pour toi* et *Au cinéma*
+sont trois façons de chercher, avec le panneau de filtres à gauche. Les critères
+du quotidien (genres, époque, note, durée, plateformes) sont visibles ; le reste
+(popularité, langue d'origine, thème, tri) est replié sous **Plus de critères**.
+
+**Ma liste** montre ce qu'on a déjà trié : *À voir*, *Déjà vus*, *Ignorés*, avec
+leur décompte. Pas de filtres ici, ils n'ont rien à y faire.
+
+Revenir dans Parcourir depuis Ma liste relance la recherche : la grille ne garde
+pas deux états à la fois.
+
 ## Au cinéma
 
 L'onglet **Au cinéma** liste les sorties en salle des 45 derniers jours dans ta
@@ -453,13 +473,14 @@ lisibles et modifiables à la main, et toutes deux bénéficient des mêmes
 protections (écriture atomique, copie de secours, mise en quarantaine d'un
 fichier illisible).
 
-Sur une affiche : la pastille en bas à gauche marque « vu », le signet à droite
-ajoute « à voir », la croix en dessous écarte le film. Les onglets au-dessus de
-la grille affichent chaque liste avec son décompte.
+Au survol d'une affiche, trois actions apparaissent en bas : **À voir**, **Vu**
+et **Ignorer**. Un film déjà trié garde un marqueur (« Vu » ou « À voir ») sans
+survol. Sur écran tactile les trois actions ne sont pas sur l'affiche — trois
+boutons permanents la cachaient — mais dans la fiche, à un toucher.
 
 ### Écarter un film
 
-La croix retire le film des propositions, des suggestions « Pour toi » et des
+**Ignorer** retire le film des propositions, des suggestions « Pour toi » et des
 films proches — définitivement, jusqu'à ce que tu changes d'avis. La carte
 disparaît immédiatement de la grille, et la page se complète pour rester pleine.
 
@@ -470,7 +491,7 @@ chaque recherche n'apprendrait rien.
 Deux exceptions volontaires. La **recherche par titre** continue de trouver un
 film écarté : chercher un nom précis et ne rien obtenir serait déroutant. Et
 l'onglet **Ignorés** liste les films écartés avec leur affiche et leur note, où
-la même croix les réhabilite — c'est là qu'on revient sur son choix.
+« Ne plus ignorer » les réhabilite — c'est là qu'on revient sur son choix.
 
 Les fichiers ne retiennent qu'un identifiant, un titre, une année et une date.
 C'est volontaire : une note ou une affiche recopiées s'y périmeraient. Les
@@ -562,12 +583,8 @@ résultats, autant les montrer.
 L'en-tête passe de 220 à 127 px (accroche et état du tracker masqués, recherche
 sur sa propre ligne), et les cibles tactiles respectent les seuils usuels :
 44 px pour les onglets, boutons et champs, 40 px pour les pastilles. Les
-commandes des cartes restent à 38 px — trois cercles de 44 px sur une affiche
-de 147 px masqueraient le film.
-
-Sur une carte étroite, la pastille « Vu » et les badges de disponibilité ne
-tiennent pas côte à côte : les badges passent au-dessus, et sont limités à deux
-(la fiche du film les montre tous).
+actions des cartes n'existent pas au toucher (voir plus haut) : les cibles de 44 px
+sont celles de la fiche.
 
 Un piège de CSS Grid méritait d'être noté : une piste `1fr` a pour minimum
 implicite `auto`, donc elle **s'élargit pour contenir son contenu** au lieu de

@@ -50,7 +50,6 @@ const soir = {
   token: 0,             // invalide les réponses arrivées après un changement de film
   generation: 0,        // invalide les tirages arrivés après un changement de phrase
   fetching: null,
-  availDone: new Set(), // films dont on connaît déjà les disponibilités
   menu: null,           // menu ouvert : { bouton, liste }
 };
 
@@ -338,7 +337,7 @@ async function soirChargerSuite(film, token) {
 }
 
 async function soirDisponibilites(films) {
-  const aFaire = films.filter((m) => m && !soir.availDone.has(m.id));
+  const aFaire = films.filter((m) => m && !state.availKnown.has(m.id));
   if (!aFaire.length) return;
   const params = new URLSearchParams();
   aFaire.forEach((m) => {
@@ -349,7 +348,7 @@ async function soirDisponibilites(films) {
   try {
     const data = await api(`/api/availability?${params}`);
     Object.entries(data.items || {}).forEach(([id, info]) => state.avail.set(Number(id), info));
-    aFaire.forEach((m) => soir.availDone.add(m.id));
+    aFaire.forEach((m) => state.availKnown.add(m.id));
   } catch (error) {
     // Sans disponibilités les billets restent vides : l'écran reste utilisable.
   }
@@ -655,7 +654,7 @@ function soirRenderOthers() {
     bouton.appendChild(affiche);
     bouton.appendChild(el('b', null, film.title));
     const dispo = state.avail.get(film.id);
-    const connu = soir.availDone.has(film.id);
+    const connu = state.availKnown.has(film.id);
     const ligne = el('span', 'soir-pick-where');
     let classe = 'is-none';
     let texte = '';

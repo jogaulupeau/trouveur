@@ -247,11 +247,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 .field-head label {
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--text-dim);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
 }
 
 .hint { font-size: 11px; color: var(--text-faint); }
@@ -614,202 +612,78 @@ input[type="range"]::-moz-range-thumb {
 .card-rating.is-low { color: var(--text-dim); }
 .card-rating.is-none { color: var(--text-faint); }
 
-.card-torrent {
-  position: absolute;
-  top: 8px; right: 8px;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 7px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11.5px;
-  font-weight: 700;
-  border-radius: 999px;
-  background: rgba(10, 12, 17, 0.82);
-  backdrop-filter: blur(6px);
-  color: var(--text-faint);
-}
-.card-torrent.is-pending::after {
-  content: "";
-  width: 9px; height: 9px;
-  border: 2px solid var(--text-faint);
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-.card-torrent.is-yes { color: #16240f; background: var(--green); }
-.card-torrent.is-no { color: var(--text-faint); opacity: 0.65; }
-.card-torrent.is-hidden { display: none; }
+/* Ce qui est posé sur l'affiche : la note, le statut une fois posé, et trois
+   actions qui n'apparaissent qu'au survol. Sur écran tactile elles restent dans
+   la fiche : trois boutons permanents par affiche cachaient l'affiche. */
 
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* marqueur « déjà vu » */
-
-.card-seen {
+.card-state {
   position: absolute;
   left: 8px;
   bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px 5px 8px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-dim);
-  background: rgba(10, 12, 17, 0.85);
-  backdrop-filter: blur(6px);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  cursor: pointer;
-  opacity: 0;
-  transform: translateY(4px);
-  transition: opacity 0.15s, transform 0.15s, color 0.15s, background 0.15s;
-  /* Invisible ne suffit pas : sans cela, le bouton continue d'intercepter les
-     clics destinés à l'affiche et marque le film au lieu d'ouvrir sa fiche. */
-  pointer-events: none;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a1408;
+  background: var(--gold);
+  border-radius: 4px;
 }
-.card:hover .card-seen,
-.card:focus-within .card-seen {
-  opacity: 1;
-  transform: none;
-  pointer-events: auto;
-}
-.card-seen:hover { color: var(--text); background: var(--surface-3); }
-
-/* Sans survol possible (tactile), le bouton doit rester atteignable. */
-@media (hover: none) {
-  .card-seen { opacity: 1; transform: none; pointer-events: auto; }
-}
-
-.card-seen-icon {
-  width: 13px;
-  height: 13px;
-  flex: none;
-  border: 1.6px solid currentColor;
-  border-radius: 50%;
-}
-
-/* Une fois le film vu, la pastille reste visible sans survol. */
-.card.is-seen .card-seen {
-  opacity: 1;
-  transform: none;
-  pointer-events: auto;
-  color: #16240f;
-  background: var(--green);
-  border-color: transparent;
-}
-.card.is-seen .card-seen-icon {
-  border-color: transparent;
-  background: currentColor;
-  position: relative;
-}
-.card.is-seen .card-seen-icon::after {
-  content: "";
-  position: absolute;
-  left: 4px;
-  top: 1px;
-  width: 3px;
-  height: 7px;
-  border: solid var(--green);
-  border-width: 0 1.8px 1.8px 0;
-  transform: rotate(42deg);
-}
+.card-state.is-seen { color: #16240f; background: var(--green); }
 
 .card.is-seen .card-poster > img { opacity: 0.4; filter: grayscale(0.55); }
 .card.is-seen .card-title { color: var(--text-faint); }
 .card.is-seen:hover .card-poster > img { opacity: 0.72; filter: grayscale(0.2); }
 
-/* signet « à voir » */
-
-.card-want {
+.card-actions {
   position: absolute;
-  right: 8px;
-  top: 36px;
-  width: 30px;
-  height: 30px;
+  inset: auto 0 0 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(10, 12, 17, 0.85);
-  backdrop-filter: blur(6px);
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  cursor: pointer;
+  background: rgba(20, 17, 26, 0.94);
   opacity: 0;
-  transition: opacity 0.15s, background 0.15s, border-color 0.15s;
-  /* Comme pour « Vu » : invisible ne doit pas vouloir dire cliquable. */
+  transform: translateY(6px);
+  transition: opacity 0.15s, transform 0.15s;
+  /* Invisible ne doit pas vouloir dire cliquable : sans cela, un clic sur
+     l'affiche marquerait le film au lieu d'ouvrir sa fiche. */
   pointer-events: none;
 }
-.card:hover .card-want,
-.card:focus-within .card-want { opacity: 1; pointer-events: auto; }
-.card-want:hover { background: var(--surface-3); }
-
-.card-want-icon {
-  width: 10px;
-  height: 13px;
-  border: 1.8px solid var(--text-dim);
-  border-bottom: 0;
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 68%, 0 100%);
+.card:hover .card-actions,
+.card:focus-within .card-actions { opacity: 1; transform: none; pointer-events: auto; }
+.card-actions button {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 4px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  background: none;
+  border: 0;
+  border-left: 1px solid var(--line);
+  cursor: pointer;
 }
-.card-want.is-on {
-  opacity: 1;
-  pointer-events: auto;
-  background: var(--gold);
-  border-color: transparent;
-}
-.card-want.is-on .card-want-icon { border-color: #1a1408; background: #1a1408; }
+.card-actions button:first-child { border-left: 0; }
+.card-actions button:hover { background: var(--surface-3); }
+.card-actions button.is-on { color: var(--gold); }
+.card-actions .card-seen[aria-pressed="true"] { color: var(--green); }
+.card-actions .card-hide:hover { color: var(--red); }
+.card-actions button:focus-visible { outline: 2px solid var(--text); outline-offset: -3px; }
 
 @media (hover: none) {
-  .card-want { opacity: 1; pointer-events: auto; }
+  .card-actions { display: none; }
 }
 
-/* écarter un film des propositions */
-
-.card-hide {
-  position: absolute;
-  right: 8px;
-  top: 70px;
-  width: 30px;
-  height: 30px;
+.card-where {
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: rgba(10, 12, 17, 0.85);
-  backdrop-filter: blur(6px);
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s, background 0.15s, border-color 0.15s;
-  /* Comme les autres commandes de la carte : invisible ne doit pas vouloir
-     dire cliquable, sous peine d'écarter un film en voulant ouvrir sa fiche. */
-  pointer-events: none;
+  gap: 8px;
+  min-height: 21px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
 }
-.card:hover .card-hide,
-.card:focus-within .card-hide { opacity: 1; pointer-events: auto; }
-.card-hide:hover { background: var(--red-dim); border-color: rgba(224, 100, 92, 0.5); }
+.dot.is-tor { background: transparent; border: 2px solid var(--gold); }
 
-.card-hide-icon { position: relative; width: 12px; height: 12px; }
-.card-hide-icon::before,
-.card-hide-icon::after {
-  content: "";
-  position: absolute;
-  top: 5px;
-  left: 0;
-  width: 12px;
-  height: 1.8px;
-  border-radius: 1px;
-  background: var(--text-dim);
-}
-.card-hide-icon::before { transform: rotate(45deg); }
-.card-hide-icon::after { transform: rotate(-45deg); }
-.card-hide:hover .card-hide-icon::before,
-.card-hide:hover .card-hide-icon::after { background: var(--red); }
 
-@media (hover: none) {
-  .card-hide { opacity: 1; pointer-events: auto; }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .sheet-hide {
   display: inline-flex;
@@ -921,54 +795,6 @@ input[type="range"]::-moz-range-thumb {
   border: solid var(--green);
   border-width: 0 2px 2px 0;
   transform: rotate(42deg);
-}
-
-/* où regarder : serveur Plex et plateformes */
-
-.card-avail {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap-reverse;
-  justify-content: flex-end;
-  max-width: calc(100% - 16px);
-}
-
-.avail-badge {
-  display: flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 8px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text);
-  background: rgba(10, 12, 17, 0.85);
-  backdrop-filter: blur(6px);
-  border-radius: 7px;
-  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.75);
-  overflow: hidden;
-}
-
-/* Les logos TMDB sont des carrés opaques aux couleurs de la marque, souvent
-   sombres. Les poser sur un fond sombre les faisait disparaître : le logo se
-   suffit à lui-même, il ne lui faut qu'un liseré pour se détacher de l'affiche. */
-.avail-badge.is-logo {
-  padding: 0;
-  background: none;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-}
-.avail-badge img { width: 28px; height: 28px; display: block; }
-
-/* Le serveur passe devant : disponible tout de suite, sans abonnement de plus. */
-.avail-badge.is-plex {
-  padding: 0 8px;
-  letter-spacing: 0.03em;
-  color: #241a02;
-  background: #e5a00d;
-  order: -1;
 }
 
 .plex-card {
@@ -2160,3 +1986,36 @@ a.stub:hover, .stub:has(button:hover) { filter: brightness(1.1); }
   body[data-screen="soir"] { transition: none; }
   .soir-pick-poster { transition: none; }
 }
+
+/* ================================= Parcourir et Ma liste ================================= */
+
+.layout.is-liste { grid-template-columns: minmax(0, 1fr); max-width: 1240px; }
+
+.field-more { margin-bottom: 22px; }
+.field-more > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  list-style: none;
+}
+.field-more > summary::-webkit-details-marker { display: none; }
+.field-more > summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border: solid var(--text-dim);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  transition: transform 0.15s;
+}
+.field-more[open] > summary::after { transform: rotate(-135deg); }
+.field-more > summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.field-more[open] > summary { margin-bottom: 14px; }
+
+.results-head h2 { font-size: 34px; font-weight: 800; line-height: 1; }

@@ -87,6 +87,16 @@
         <input type="range" id="runtime-max" min="60" max="245" step="5" value="245">
       </section>
 
+      <section class="field">
+        <div class="field-head">
+          <label>Disponible sur</label>
+          <span class="hint">facultatif</span>
+        </div>
+        <div class="providers" id="providers" role="group" aria-label="Plateformes"></div>
+      </section>
+
+      <details class="field-more" id="more-criteria">
+        <summary>Plus de critères</summary>
       <section class="field grid-2">
         <div>
           <div class="field-head"><label for="votes-min">Popularité</label></div>
@@ -126,14 +136,6 @@
       </section>
 
       <section class="field">
-        <div class="field-head">
-          <label>Disponible sur</label>
-          <span class="hint">facultatif</span>
-        </div>
-        <div class="providers" id="providers" role="group" aria-label="Plateformes"></div>
-      </section>
-
-      <section class="field">
         <div class="field-head"><label for="sort">Trier par</label></div>
         <select id="sort">
           <option value="note" selected>Meilleures notes</option>
@@ -144,6 +146,8 @@
           <option value="revenus">Plus gros succès</option>
         </select>
       </section>
+
+      </details>
 
       <section class="field">
         <label class="switch">
@@ -165,7 +169,7 @@
   <main class="results">
     <div class="results-head">
       <div class="results-title-row">
-        <h2 id="results-title">Vos propositions</h2>
+        <h2 id="results-title">Propositions</h2>
         <button type="button" class="back-link" id="back-to-criteria" hidden>Revenir aux critères</button>
       </div>
       <p class="results-meta" id="results-meta"></p>
@@ -177,10 +181,12 @@
       <span class="filters-count" id="filters-count"></span>
     </button>
 
-    <nav class="tabs" id="tabs">
+    <nav class="tabs" id="tabs" aria-label="Façons de parcourir">
       <button type="button" class="tab on" data-view="decouverte">Propositions</button>
       <button type="button" class="tab" data-view="foryou">Pour toi</button>
       <button type="button" class="tab" data-view="cinema">Au cinéma</button>
+    </nav>
+    <nav class="tabs" id="list-tabs" aria-label="Mes listes" hidden>
       <button type="button" class="tab" data-view="watchlist">À voir <span class="tab-count" id="count-watchlist"></span></button>
       <button type="button" class="tab" data-view="seen">Déjà vus <span class="tab-count" id="count-seen"></span></button>
       <button type="button" class="tab" data-view="ignored">Ignorés <span class="tab-count" id="count-ignored"></span></button>
@@ -196,7 +202,7 @@
 
     <div class="empty" id="empty">
       <span class="empty-mark" aria-hidden="true"></span>
-      <p>Choisissez vos critères à gauche, puis lancez la recherche.</p>
+      <p>Rien à montrer pour l'instant.</p>
     </div>
   </main>
 </div>
@@ -421,22 +427,17 @@
     <div class="card-poster">
       <img alt="" loading="lazy">
       <span class="card-rating"></span>
-      <span class="card-torrent is-pending" title="Recherche de torrents…"></span>
-      <button type="button" class="card-seen" aria-pressed="false">
-        <span class="card-seen-icon" aria-hidden="true"></span>
-        <span class="card-seen-text">Vu</span>
-      </button>
-      <span class="card-avail"></span>
-      <button type="button" class="card-want" aria-pressed="false" title="Ajouter à ma liste à voir">
-        <span class="card-want-icon" aria-hidden="true"></span>
-      </button>
-      <button type="button" class="card-hide" title="Ne plus me proposer ce film">
-        <span class="card-hide-icon" aria-hidden="true"></span>
-      </button>
+      <span class="card-state" hidden></span>
+      <div class="card-actions">
+        <button type="button" class="card-want" aria-pressed="false">À voir</button>
+        <button type="button" class="card-seen" aria-pressed="false">Vu</button>
+        <button type="button" class="card-hide">Ignorer</button>
+      </div>
     </div>
     <div class="card-body">
       <h3 class="card-title"></h3>
       <p class="card-sub"></p>
+      <p class="card-where"></p>
     </div>
   </article>
 </template>
