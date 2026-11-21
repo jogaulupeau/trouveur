@@ -181,11 +181,14 @@ async function lancerSurTele(movie, bouton) {
     note.classList.add('is-ok');
     if (r.method === 'app') {
       note.textContent = `Plex ouvert sur ${r.name}. Cherche « ${r.film} » dans Plex.`;
+    } else if (r.method === 'plex_client') {
+      note.textContent = `Lancement demandé à ${r.name} : « ${r.film} ».`;
     } else {
       note.textContent = `Lancement demandé à ${r.name} : « ${r.film} ». `
         + 'Si Plex demande un profil ou un code PIN, saisis-le puis touche à nouveau Lancer.';
     }
-    proposerAutrement(movie, note, r.method);
+    // Les formes de lien n'ont de sens que pour un appareil Android TV, pas pour une entrée Plex.
+    if (r.method !== 'plex_client') proposerAutrement(movie, note, r.method);
     bouton.textContent = 'Demandé';
     rendre(6000);
   } catch (error) {
@@ -957,6 +960,11 @@ function bindEvents() {
     decrireProfilTracker();
   });
   $('set-tv-method').addEventListener('change', aideLancement);
+  // Une entrée « Plex (…) » se pilote par le titre, pas par un lien : on choisit pour l'utilisateur.
+  $('set-tv-player').addEventListener('change', () => {
+    if (/^media_player\.plex/.test($('set-tv-player').value)) $('set-tv-method').value = 'plex_client';
+    aideLancement();
+  });
   $('tv-inspect').addEventListener('click', inspecterTele);
   $('deluge-test').addEventListener('click', delugeTest);
   $('tracker-test').addEventListener('click', trackerTest);
@@ -2067,6 +2075,10 @@ async function loadSettings() {
 /* ---------------------------------- télé ---------------------------------- */
 
 const AIDE_LANCEMENT = {
+  plex_client: 'Choisis dans « Lecteur » l’entrée « Plex (…) » de l’appareil. Home Assistant demande '
+    + 'alors le film par son titre à l’application Plex ouverte, sans lien : c’est la voie documentée. '
+    + 'Cette entrée n’existe que tant que Plex est ouvert sur l’appareil ; si elle manque, ouvre Plex '
+    + 'puis recharge cette page.',
   lien: 'Envoie à l’application Plex un lien vers le film. C’est la méthode faite pour '
     + 'l’intégration Android TV Remote, qui n’accepte que les liens, les applications et les chaînes. '
     + 'À essayer : tous les boîtiers ne suivent pas le lien.',
@@ -2079,9 +2091,8 @@ const AIDE_LANCEMENT = {
     + 'tous les boîtiers n’acceptent pas ce format.',
   app: 'Ouvre l’application Plex sans choisir le film : Trouveur affiche alors le titre à chercher. '
     + 'C’est le recours quand aucun lien ne passe.',
-  plex: 'Demande à Home Assistant de lancer le film par son titre, dans sa bibliothèque Plex. '
-    + 'Il faut l’intégration Plex de Home Assistant et un lecteur de type Chromecast : '
-    + 'Android TV Remote n’accepte pas cette commande.',
+  plex: 'Pour un Chromecast : demande le film par son titre avec le préfixe plex://. '
+    + 'Ne fonctionne ni avec Android TV Remote ni avec une entrée « Plex (…) ».',
 };
 
 // Les formes de lien qu'on peut essayer l'une après l'autre quand la première

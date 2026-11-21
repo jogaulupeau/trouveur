@@ -7,8 +7,14 @@ pour essayer en local, TROUVEUR_HA_URL et TROUVEUR_HA_TOKEN jouent ce role.
 Rien n'est ecrit en dur sur l'installation de quelqu'un : le lecteur vise est un
 reglage, choisi dans la liste que Home Assistant donne lui-meme.
 
-Quatre facons de lancer, au choix, parce qu'elles ne conviennent pas au meme
+Plusieurs facons de lancer, au choix, parce qu'elles ne conviennent pas au meme
 materiel et qu'on ne peut pas deviner de loin laquelle convient :
+
+  plex_client  l'entite « Plex (...) » que l'integration Plex de Home Assistant cree
+            pour une application Plex ouverte : play_media avec un JSON
+            {"library_name", "title"} SANS prefixe. C'est la voie documentee, la
+            seule qui ne passe pas par un lien. L'entite n'existe que quand
+            l'application Plex est ouverte sur l'appareil.
 
   lien      un lien profond vers le film, ouvert dans l'application Plex.
             L'integration Android TV Remote n'accepte que « app », « url » et
@@ -19,9 +25,9 @@ materiel et qu'on ne peut pas deviner de loin laquelle convient :
   intent    un « intent: » Android avec l'indicateur de lecture de Plex
             (android.intent.extra.START_PLAYBACK). Experimental.
   app       ouvre seulement l'application Plex. Ne choisit pas le film.
-  plex      l'integration Plex de Home Assistant (Chromecast) : play_media avec un
-            identifiant « plex://{...} » qui nomme la bibliotheque et le titre.
-            Ne fonctionne pas avec Android TV Remote.
+  plex      un Chromecast, par l'integration Plex : le meme JSON, AVEC le prefixe
+            « plex:// ». Ne fonctionne ni avec Android TV Remote ni avec une
+            entite « Plex (...) ».
 
 Android TV Remote ne dit pas si quelque chose est en cours de lecture : son etat
 est « on » ou « off ». Pour ne pas couper un film a quelqu'un, un lecteur allume
@@ -38,7 +44,7 @@ from typing import Any
 
 from .http_client import HttpError, get_json, post_json, redact, register_secret
 
-METHODES = ("lien", "lien_web", "preplay", "play", "intent", "app", "plex")
+METHODES = ("plex_client", "lien", "lien_web", "preplay", "play", "intent", "app", "plex")
 
 # Methodes dont le lien nomme le serveur et le film : il leur faut l'identifiant
 # du serveur Plex.
@@ -174,7 +180,7 @@ class HomeAssistant:
                     "#Intent;scheme=plex;package=%s;B.android.intent.extra.START_PLAYBACK=true;end"
                     % (machine, cle, PLEX_ANDROID)),
             }
-        if methode == "plex":
+        if methode in ("plex", "plex_client"):
             if not film.get("library"):
                 raise HomeAssistantError(
                     "Plex n'a pas dit dans quelle bibliotheque est ce film : "
@@ -182,10 +188,12 @@ class HomeAssistant:
             recherche: dict[str, Any] = {"library_name": film["library"], "title": film["title"]}
             if film.get("year"):
                 recherche["year"] = film["year"]
+            identifiant = json.dumps(recherche, ensure_ascii=False)
             return {
                 "entity_id": self.player,
                 "media_content_type": "movie",
-                "media_content_id": "plex://" + json.dumps(recherche, ensure_ascii=False),
+                # Un Chromecast veut le prefixe ; une entite « Plex (...) » veut le JSON seul.
+                "media_content_id": ("plex://" + identifiant) if methode == "plex" else identifiant,
             }
         if methode == "lien_web":
             if not film.get("web_url"):
@@ -218,9 +226,13 @@ class HomeAssistant:
         attributs = etat.get("attributes") or {}
         nom = self.player_name or attributs.get("friendly_name") or self.player
 
+        methode = method if method in METHODES else self.method
         if statut == "unavailable":
+            conseil = (" L'application Plex doit être ouverte sur l'appareil : "
+                       "l'entité n'existe que tant qu'elle l'est."
+                       if methode == "plex_client" else "")
             raise HomeAssistantError(
-                "%s ne répond pas à Home Assistant (état « indisponible »)." % nom)
+                "%s ne répond pas à Home Assistant (état « indisponible »).%s" % (nom, conseil))
         # Quelqu'un regarde peut-etre : on ne remplace pas sans qu'on nous le dise.
         # Certains lecteurs disent ce qu'ils lisent ; les autres (Android TV Remote)
         # disent seulement qu'ils sont allumes, ce qui suffit a demander.
@@ -232,7 +244,6 @@ class HomeAssistant:
                 return {"status": "busy", "reason": "allume", "name": nom, "state": statut,
                         "title": attributs.get("media_title")}
 
-        methode = method if method in METHODES else self.method
         self._post("/services/media_player/play_media", self.commande(film, machine, methode))
         return {"status": "ok", "name": nom, "method": methode}
 

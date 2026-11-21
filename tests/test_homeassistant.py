@@ -40,6 +40,9 @@ ETATS = {
     "media_player.autre": {
         "state": "playing", "attributes": {"friendly_name": "Autre", "media_title": "Un film"}},
     "media_player.absent": {"state": "unavailable", "attributes": {"friendly_name": "Absent"}},
+    # Entrees de l'integration Plex : une par application Plex ouverte.
+    "media_player.plex_salon": {"state": "idle", "attributes": {"friendly_name": "Plex (Salon)"}},
+    "media_player.plex_ferme": {"state": "unavailable", "attributes": {"friendly_name": "Plex (Ferme)"}},
     # Android TV Remote : allume ou eteint, jamais « playing ».
     "media_player.boitier": {"state": "on", "attributes": {"friendly_name": "Boitier"}},
     "light.salon": {"state": "on", "attributes": {"friendly_name": "Salon"}},
@@ -108,7 +111,7 @@ lecteurs = client().players()
 check("seuls les lecteurs multimedia sont listes",
       [p["entity_id"] for p in lecteurs] == [
           "media_player.absent", "media_player.autre", "media_player.boitier",
-          "media_player.lecteur_salon"],
+          "media_player.lecteur_salon", "media_player.plex_ferme", "media_player.plex_salon"],
       str(lecteurs))
 check("le nom affiche est le nom convivial de Home Assistant",
       lecteurs[3]["name"] == "Lecteur du salon", str(lecteurs[3]))
@@ -155,6 +158,35 @@ corps = APPELS[0]["corps"]
 check("le lien profond porte l'identifiant du serveur et du film",
       corps["media_content_type"] == "url" and corps["media_content_id"] ==
       "plex://server://MACHINE123/com.plexapp.plugins.library/library/metadata/4242", str(corps))
+
+# -- client Plex : le JSON seul, sans prefixe ---------------------------------------------------
+APPELS.clear()
+plex_client = ha.HomeAssistant({"homeassistant": {
+    "player": "media_player.plex_salon", "player_name": "Plex (Salon)", "method": "plex_client"}})
+reponse = plex_client.launch(FILM, None)
+corps = APPELS[0]["corps"]
+check("« plex_client » envoie le JSON seul : pas de prefixe plex://",
+      not corps["media_content_id"].startswith("plex://")
+      and json.loads(corps["media_content_id"]) == {
+          "library_name": "Films", "title": "L'Été meurtrier", "year": 1983}
+      and corps["media_content_type"] == "movie" and corps["entity_id"] == "media_player.plex_salon",
+      str(corps))
+check("une entree Plex au repos est commandee directement (rien ne s'y joue)",
+      reponse["status"] == "ok" and reponse["method"] == "plex_client", str(reponse))
+APPELS.clear()
+client("plex").launch(FILM, None)
+check("« plex » (Chromecast) garde le prefixe, lui",
+      APPELS[0]["corps"]["media_content_id"].startswith("plex://{"), str(APPELS[0]))
+
+APPELS.clear()
+ferme = ha.HomeAssistant({"homeassistant": {
+    "player": "media_player.plex_ferme", "player_name": "Plex (Ferme)", "method": "plex_client"}})
+try:
+    ferme.launch(FILM, None)
+    check("une entree Plex indisponible n'est pas commandee", False)
+except ha.HomeAssistantError as exc:
+    check("une entree Plex indisponible dit d'ouvrir Plex sur l'appareil, sans commande",
+          "ouverte" in str(exc) and "Plex" in str(exc) and APPELS == [], str(exc))
 
 # -- lien web : le lien https de Plex ----------------------------------------------------------
 APPELS.clear()
@@ -206,6 +238,8 @@ check("sans reglage, la methode est le lien Plex, pas la commande Chromecast",
       par_defaut.method == "lien" and par_defaut.confirm_on is True, par_defaut.method)
 check("une methode inconnue retombe sur le lien",
       ha.HomeAssistant({"homeassistant": {"method": "n-importe-quoi"}}).method == "lien")
+check("« plex_client » est une methode connue",
+      ha.HomeAssistant({"homeassistant": {"method": "plex_client"}}).method == "plex_client")
 check("« plex » seul n'est pas un type accepte par Android TV Remote : il n'est pas le defaut",
       "plex" in ha.METHODES and ha.METHODES[0] != "plex")
 

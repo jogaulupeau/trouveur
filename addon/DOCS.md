@@ -162,7 +162,11 @@ s'en sert que pour envoyer la commande de lecture au lecteur choisi.
 Dans **Réglages → Télé** :
 
 1. **Lecteur** : la liste vient de Home Assistant, rien n'est supposé.
-2. **Façon de lancer** : pour l'intégration **Android TV Remote**, *lien Plex vers
+2. **Façon de lancer** : si la liste « Lecteur » contient une entrée **« Plex (…) »**
+   (créée par l'intégration Plex de Home Assistant quand l'application Plex est
+   ouverte sur l'appareil), choisissez-la : Trouveur prend alors *client Plex*, qui
+   demande le film par son titre, sans lien. C'est la méthode la plus fiable. Pour
+   l'intégration **Android TV Remote**, les méthodes par lien sont expérimentales : *lien Plex vers
    le film* (essayer en premier), *lien web de Plex*, ou *ouvrir seulement
    l'application Plex* (le titre à chercher s'affiche alors). *Chromecast* passe
    par l'intégration Plex de Home Assistant et ne fonctionne pas avec Android TV

@@ -78,7 +78,7 @@ DEFAULTS: dict[str, Any] = {
     },
     "homeassistant": {
         # Lecteur de Home Assistant sur lequel lancer un film (« media_player.… »),
-        # son nom pour l'affichage, et la facon de lancer : lien, lien_web, app ou plex.
+        # son nom pour l'affichage, et la facon de lancer : plex_client, lien, lien_web, preplay, play, intent, app, plex.
         # Choisis dans les Reglages : rien n'est suppose sur ton installation.
         "player": "",
         "player_name": "",

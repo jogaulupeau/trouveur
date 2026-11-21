@@ -259,13 +259,14 @@ Remote** de Home Assistant n'accepte dans `play_media` que `app`, `url` et
 
 | | Ce qui part vers `media_player.play_media` | Prérequis |
 |---|---|---|
-| **lien** (Android TV, par défaut) | `plex://server://<serveur>/com.plexapp.plugins.library/library/metadata/<film>`, type `url` | l'application Plex sur le boîtier |
+| **plex_client** (entrée « Plex (…) ») | le JSON `{"library_name": …, "title": …, "year": …}` **sans préfixe**, type `movie`, vers l'entité que l'intégration Plex crée pour l'application Plex ouverte | l'intégration Plex de Home Assistant, connectée à ton serveur ; l'application Plex ouverte sur l'appareil |
+| **lien** (Android TV) | `plex://server://<serveur>/com.plexapp.plugins.library/library/metadata/<film>`, type `url` | l'application Plex sur le boîtier |
 | **lien_web** (Android TV) | le lien web de Plex (`https://app.plex.tv/…`), type `url` | l'application Plex sur le boîtier |
 | **preplay** (Android TV) | `plex://preplay/?metadataKey=<clé encodée>&metadataType=1&server=<serveur>`, type `url` | l'application Plex sur le boîtier |
 | **play** (Android TV) | `plex://play/?metadataKey=…&metadataType=1&server=…`, type `url` | l'application Plex sur le boîtier |
 | **intent** (Android TV, expérimental) | un `intent://…#Intent;scheme=plex;package=com.plexapp.android;B.android.intent.extra.START_PLAYBACK=true;end`, type `url` | l'application Plex ; la télé doit accepter ce format |
 | **app** (Android TV) | l'identifiant de l'application Plex, type `app` | l'application Plex ; **ne choisit pas le film** |
-| **plex** (Chromecast) | `plex://{"library_name": …, "title": …, "year": …}`, type `movie` | l'intégration Plex de Home Assistant, connectée à ton serveur ; **inutilisable avec Android TV Remote** |
+| **plex** (Chromecast) | le même JSON **avec** le préfixe `plex://`, type `movie` | l'intégration Plex de Home Assistant ; **inutilisable avec Android TV Remote et avec une entrée « Plex (…) »** |
 
 Le titre et la bibliothèque viennent **de Plex**, relus côté serveur, pas de ce que
 la page envoie : c'est ce que l'intégration Plex sait retrouver. La page ne sert qu'à
@@ -285,7 +286,10 @@ Trois garde-fous :
   suivie du titre à chercher dans Plex : c'est le plan B.
 
 **Constat sur un vrai projecteur (Android TV Remote)** : avec la méthode *lien*,
-Plex s'ouvre mais reste sur son accueil, profil déjà choisi. Le lien arrive donc
+Plex s'ouvre mais reste sur son accueil, profil déjà choisi. Aucune des autres
+formes de lien (*lien web*, *preplay*, *play*, *intent*) n'a ouvert un film ni une
+fiche. Ces liens passent donc mal par Android TV Remote ; la voie à privilégier est
+**plex_client**, qui ne passe pas par un lien. Le lien arrive donc
 jusqu'à l'application sans être suivi. Les formes de lien Plex pour Android TV
 ont changé avec les versions de l'application, et Home Assistant ne reçoit
 aucun retour de la télé : rien ne dit pourquoi un lien est ignoré.
