@@ -12,6 +12,10 @@ from . import cache
 from .http_client import HttpError, build_url, get_json, register_secret
 
 BASE = "https://api.themoviedb.org/3"
+
+# « NR » (Not Rated, non classe) figure dans la liste des classements de TMDB
+# mais n'est pas un age : « au plus NR » ne voudrait rien dire.
+SANS_PLAFOND = {"NR"}
 IMAGE_BASE = "https://image.tmdb.org/t/p"
 
 # Au-dela, TMDB renvoie surtout du bruit : on borne le tirage aleatoire.
@@ -125,7 +129,8 @@ class Tmdb:
         liste = (data.get("certifications") or {}).get(self.region) or []
         return sorted(
             ({"code": c["certification"], "order": c.get("order", 0)}
-             for c in liste if c.get("certification")),
+             for c in liste
+             if c.get("certification") and c["certification"] not in SANS_PLAFOND),
             key=lambda c: c["order"],
         )
 

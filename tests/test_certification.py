@@ -50,6 +50,7 @@ check("le pays suit la region configuree",
 # -- la liste des classements de la region -----------------------------------
 REPONSE = {"certifications": {
     "FR": [{"certification": "16", "order": 4}, {"certification": "U", "order": 1},
+           {"certification": "NR", "order": 0},
            {"certification": "12", "order": 3}, {"certification": "10", "order": 2},
            {"certification": "18", "order": 5}],
     "US": [{"certification": "G", "order": 1}],
@@ -65,6 +66,9 @@ fr = FauxTmdb({"tmdb": {"api_key": "0123456789abcdef0123456789abcdef", "region":
 check("les classements sont rendus du plus ouvert au plus strict",
       [c["code"] for c in fr.certifications()] == ["U", "10", "12", "16", "18"],
       str(fr.certifications()))
+
+check("« NR » (non classe) n'est pas propose comme plafond",
+      "NR" not in [c["code"] for c in fr.certifications()], str(fr.certifications()))
 
 inconnue = FauxTmdb({"tmdb": {"api_key": "0123456789abcdef0123456789abcdef", "region": "JP"}})
 check("une region sans classement connu n'en propose aucun",

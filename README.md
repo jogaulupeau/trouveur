@@ -246,7 +246,9 @@ filtres de Parcourir limitent le classement d'âge : *tout public*, *-10*, *-12*
 maximum » garde les films tout public, -10 et -12.
 
 TMDB compare au classement de la **région** configurée (en France : U, 10, 12,
-16, 18). La liste est lue chez TMDB, pas écrite dans le code : une région dont
+16, 18). « NR » (*Not Rated*, non classé), que TMDB range dans la même liste,
+n'est pas un âge et n'est pas proposé ; la fiche l'affiche « non classé ». La
+liste est lue chez TMDB, pas écrite dans le code : une région dont
 TMDB ne connaît aucun classement n'a simplement pas ce filtre. Le plus strict
 (18 en France) n'est pas proposé, puisqu'il ne limite rien.
 

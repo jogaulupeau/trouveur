@@ -581,6 +581,7 @@ async function buildProviders() {
 /** Le libellé d'un classement : « tout public », « -12 »… selon la région. */
 function libelleClassement(code) {
   if (code === 'U') return 'tout public';
+  if (code === 'NR') return 'non classé';
   return /^\d+$/.test(code) ? `-${code}` : code;
 }
 
@@ -1412,7 +1413,9 @@ function renderSheet(movie) {
     (movie.genres || []).join(', ') || null,
     (movie.directors || []).length ? `de ${movie.directors.join(', ')}` : null,
   ].filter(Boolean).forEach((text) => facts.appendChild(el('span', null, String(text))));
-  if (movie.certification) facts.appendChild(el('span', 'fact-cert', movie.certification));
+  if (movie.certification) {
+    facts.appendChild(el('span', 'fact-cert', libelleClassement(movie.certification)));
+  }
   head.appendChild(facts);
   head.appendChild(renderScore(movie));
   top.appendChild(head);
