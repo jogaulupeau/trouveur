@@ -42,6 +42,67 @@ const state = {
 
 /* ------------------------------ utilitaires ------------------------------ */
 
+/* Les billets : une source de visionnage par billet, du plus immédiat au plus
+ * long. Partagés par « Ce soir » et par la fiche du film. */
+
+function meilleurTorrent(torrents) {
+  // 1080p et version française d'abord, puis le plus alimenté.
+  const rang = (t) => {
+    const tags = t.tags || {};
+    return (/1080/.test(tags.resolution || '') ? 2 : 0) + (tags.language ? 1 : 0);
+  };
+  return [...torrents].sort((a, b) => rang(b) - rang(a) || (b.seeders || 0) - (a.seeders || 0))[0];
+}
+
+/** Un billet. Avec `action.href` c'est un lien, avec `action.faire` un bouton,
+ *  sans action il informe seulement. */
+function billet({ petit, grand, action, info }) {
+  const racine = action && action.href
+    ? el('a', 'stub') : action ? el('div', 'stub') : el('div', 'stub is-info');
+  if (action && action.href) {
+    racine.href = action.href;
+    racine.target = action.externe ? '_blank' : '_self';
+    if (action.externe) racine.rel = 'noopener noreferrer';
+  }
+  const corps = el('span', 'stub-main');
+  corps.appendChild(el('small', null, petit));
+  corps.appendChild(el('strong', null, grand));
+  racine.appendChild(corps);
+  if (action) {
+    if (action.href) {
+      racine.appendChild(el('span', 'stub-go', action.texte));
+    } else {
+      const bouton = el('button', 'stub-go', action.texte);
+      bouton.type = 'button';
+      bouton.addEventListener('click', () => action.faire(bouton));
+      racine.appendChild(bouton);
+    }
+  }
+  if (info) racine.title = info;
+  return racine;
+}
+
+/** Le billet du meilleur torrent : 1080p et version française d'abord. */
+function billetTorrent(liste) {
+  const meilleur = meilleurTorrent(liste);
+  const tags = meilleur.tags || {};
+  const resume = [tags.resolution, tags.language, meilleur.size ? formatSize(meilleur.size) : null]
+    .filter(Boolean).join(', ');
+  let action = null;
+  if (meilleur.slug && state.deluge.enabled) {
+    action = { texte: 'Envoyer à Deluge', faire: (bouton) => envoyerVersDeluge(meilleur.slug, bouton) };
+  } else if (meilleur.slug) {
+    action = { texte: 'Télécharger', href: apiUrl(`api/torrent?slug=${encodeURIComponent(meilleur.slug)}`) };
+  }
+  return billet({
+    petit: `À télécharger, ${liste.length} version${liste.length > 1 ? 's' : ''}`,
+    grand: resume || meilleur.name,
+    action,
+    info: meilleur.name,
+  });
+}
+
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -245,7 +306,7 @@ function paintSeen(movieId) {
     sheetButton.classList.toggle('is-on', isSeen);
     sheetButton.setAttribute('aria-pressed', String(isSeen));
     sheetButton.querySelector('.sheet-seen-text').textContent = isSeen
-      ? 'Déjà vu' : 'Marquer comme vu';
+      ? 'Déjà vu' : 'Vu';
   }
 }
 
@@ -1174,6 +1235,7 @@ async function openSheet(movieId) {
   const body = $('sheet-body');
   backdrop.hidden = false;
   document.body.style.overflow = 'hidden';
+  $('sheet').scrollTop = 0;
   body.textContent = '';
   body.appendChild(el('div', 'empty', 'Chargement de la fiche…'));
 
@@ -1189,15 +1251,7 @@ async function openSheet(movieId) {
 
   body.textContent = '';
   body.appendChild(renderSheet(movie));
-
-  if (state.tracker.enabled) {
-    const slot = $('torrent-slot');
-    if (slot) {
-      const result = await fetchTorrents(movie);
-      slot.textContent = '';
-      slot.appendChild(renderTorrents(result));
-    }
-  }
+  loadSheetWhere(movie).catch(() => {});
 
   await fillSaga(movie);
   await fillSimilar(movie);
@@ -1305,22 +1359,18 @@ function renderSimilarRow(movies) {
 function renderSheet(movie) {
   const fragment = document.createDocumentFragment();
 
-  const hero = el('div', 'sheet-hero');
+  const hero = el('div', `sheet-hero${movie.backdrop ? '' : ' is-empty'}`);
   if (movie.backdrop) hero.style.backgroundImage = `url("${movie.backdrop}")`;
   fragment.appendChild(hero);
 
-  const main = el('div', 'sheet-main');
-
-  // colonne gauche : affiche
-  const left = el('div');
+  // En-tête : l'affiche, puis ce qui identifie le film. Le reste vient dessous,
+  // dans l'ordre où on en a besoin : où le regarder avant tout.
+  const top = el('div', 'sheet-top');
   const poster = el('img', 'sheet-poster');
   poster.alt = `Affiche de ${movie.title}`;
   if (movie.poster) poster.src = movie.poster;
-  left.appendChild(poster);
-  main.appendChild(left);
+  top.appendChild(poster);
 
-  // colonne droite
-  const right = el('div');
   const head = el('div', 'sheet-head');
   head.appendChild(el('h3', 'sheet-title', movie.title));
   if (movie.original_title && movie.original_title !== movie.title) {
@@ -1329,61 +1379,33 @@ function renderSheet(movie) {
   if (movie.tagline) head.appendChild(el('p', 'sheet-tagline', `« ${movie.tagline} »`));
 
   const facts = el('div', 'sheet-facts');
-  const factList = [
+  [
     movie.year,
     formatRuntime(movie.runtime),
     (movie.genres || []).join(', ') || null,
     (movie.directors || []).length ? `de ${movie.directors.join(', ')}` : null,
-  ].filter(Boolean);
-  factList.forEach((text) => facts.appendChild(el('span', 'fact', text)));
-  if (movie.certification) facts.appendChild(el('span', 'fact is-cert', movie.certification));
+  ].filter(Boolean).forEach((text) => facts.appendChild(el('span', null, String(text))));
+  if (movie.certification) facts.appendChild(el('span', 'fact-cert', movie.certification));
   head.appendChild(facts);
   head.appendChild(renderScore(movie));
-  head.appendChild(renderActions(movie));
-  right.appendChild(head);
+  top.appendChild(head);
+  fragment.appendChild(top);
 
-  if (movie.overview) {
-    right.appendChild(section('Synopsis', el('p', null, movie.overview)));
-  } else {
-    right.appendChild(section('Synopsis', el('p', 'muted', 'Aucun synopsis en français n’est disponible pour ce film.')));
-  }
+  const sections = el('div', 'sheet-sections');
 
-  const plexInfo = (state.avail.get(movie.id) || {}).plex;
-  if (plexInfo) {
-    right.appendChild(section('Sur ton serveur Plex', renderPlex(plexInfo)));
-  }
+  const slotOu = el('div', 'where-slot');
+  slotOu.id = 'where-slot';
+  slotOu.dataset.id = movie.id;
+  sections.appendChild(section('Où le regarder', slotOu));
 
-  right.appendChild(section('Où en savoir plus', renderLinks(movie)));
+  sections.appendChild(section('Synopsis', movie.overview
+    ? el('p', null, movie.overview)
+    : el('p', 'muted', 'Aucun synopsis en français n’est disponible pour ce film.')));
 
-  if (movie.trailer) {
-    const wrapper = el('div');
-    const frame = el('div', 'trailer');
-    const iframe = document.createElement('iframe');
-    iframe.src = movie.trailer.embed;
-    iframe.title = `Bande-annonce de ${movie.title}`;
-    iframe.allow = 'accelerometer; encrypted-media; picture-in-picture; fullscreen';
-    iframe.allowFullscreen = true;
-    iframe.loading = 'lazy';
-    frame.appendChild(iframe);
-    wrapper.appendChild(frame);
-    const isFrench = movie.trailer.language === 'fr';
-    wrapper.appendChild(el(
-      'span',
-      'trailer-lang',
-      isFrench ? 'Bande-annonce française' : 'Bande-annonce en version originale — aucune version française trouvée',
-    ));
-    right.appendChild(section('Bande-annonce', wrapper));
-  }
-
-  if (state.tracker.enabled) {
-    const slot = el('div');
-    slot.id = 'torrent-slot';
-    slot.appendChild(el('p', 'muted', 'Interrogation du tracker…'));
-    right.appendChild(section(`Torrents · ${state.tracker.name}`, slot));
-  }
+  if (movie.trailer) sections.appendChild(section('Bande-annonce', renderTrailer(movie)));
 
   if ((movie.cast || []).length) {
-    right.appendChild(section('Distribution', renderCast(movie.cast)));
+    sections.appendChild(section('Distribution', renderCast(movie.cast)));
   }
 
   if (movie.collection) {
@@ -1391,26 +1413,22 @@ function renderSheet(movie) {
     sagaSlot.id = 'saga-slot';
     sagaSlot.dataset.collection = movie.collection.id;
     sagaSlot.appendChild(el('p', 'muted', 'Chargement de la saga…'));
-    right.appendChild(section(movie.collection.name, sagaSlot));
+    sections.appendChild(section(movie.collection.name, sagaSlot));
   }
 
   const similarSlot = el('div');
   similarSlot.id = 'similar-slot';
   similarSlot.appendChild(el('p', 'muted', 'Recherche de films proches…'));
-  right.appendChild(section('Dans le même esprit', similarSlot));
+  sections.appendChild(section('Dans le même esprit', similarSlot));
 
-  const extras = [
-    (movie.writers || []).length ? `Scénario : ${movie.writers.join(', ')}` : null,
-    (movie.companies || []).length ? `Production : ${movie.companies.join(', ')}` : null,
-    formatMoney(movie.budget) ? `Budget : ${formatMoney(movie.budget)}` : null,
-    formatMoney(movie.revenue) ? `Recettes : ${formatMoney(movie.revenue)}` : null,
-  ].filter(Boolean);
-  if (extras.length) {
-    right.appendChild(section('Fiche technique', el('p', 'muted', extras.join('  ·  '))));
-  }
+  const technique = renderTechnique(movie);
+  if (technique) sections.appendChild(section('Fiche technique', technique));
 
-  main.appendChild(right);
-  fragment.appendChild(main);
+  sections.appendChild(section('Plus d’infos', renderLinks(movie)));
+  fragment.appendChild(sections);
+
+  // Les trois gestes restent à portée de pouce, où que l'on soit dans la fiche.
+  fragment.appendChild(renderActions(movie));
   return fragment;
 }
 
@@ -1421,52 +1439,167 @@ function section(title, content) {
   return box;
 }
 
-function renderPlex(info) {
-  const box = el('div', 'plex-card');
+/** Les billets d'un film, dans la fiche : Plex, abonnements, tracker. */
+function paintSheetWhere(movie) {
+  const slot = $('where-slot');
+  if (!slot || Number(slot.dataset.id) !== movie.id) return;
+  const etaitOuvert = Boolean(slot.querySelector('details[open]'));
+  slot.textContent = '';
 
-  const head = el('div', 'plex-head');
-  head.appendChild(el('span', 'plex-mark', 'Plex'));
-  head.appendChild(el('span', 'plex-title', 'Déjà dans ta bibliothèque'));
-  box.appendChild(head);
+  const dispo = state.avail.get(movie.id) || {};
+  const plex = dispo.plex;
+  const connu = state.availKnown.has(movie.id);
+  const resultat = state.torrentCache.get(movie.id);
+  const billets = el('div', 'tickets');
+  const notes = [];
 
-  const facts = el('div', 'plex-facts');
-  [
-    info.resolution,
-    info.codec ? info.codec.toUpperCase() : null,
-    info.container ? info.container.toUpperCase() : null,
-    info.size ? formatSize(info.size) : null,
-    info.view_count ? `déjà lu ${info.view_count} fois sur Plex` : null,
-  ].filter(Boolean).forEach((text) => facts.appendChild(el('span', 'fact', text)));
-  if (facts.children.length) box.appendChild(facts);
-
-  if (info.matched_by === 'titre') {
-    box.appendChild(el(
-      'p',
-      'muted',
-      'Rapproché par titre et année : Plex n’a pas d’identifiant TMDB pour ce film.',
-    ));
+  if (plex) {
+    const detail = [
+      plex.resolution,
+      plex.codec ? plex.codec.toUpperCase() : null,
+      plex.container ? plex.container.toUpperCase() : null,
+      plex.size ? formatSize(plex.size) : null,
+    ].filter(Boolean).join(', ');
+    billets.appendChild(billet({
+      petit: 'Sur ton Plex, prêt maintenant',
+      grand: detail || 'Dans ta bibliothèque',
+      action: plex.url ? { href: plex.url, texte: 'Ouvrir', externe: true } : null,
+    }));
+    if (plex.view_count) {
+      notes.push(`Déjà lu ${plex.view_count} fois sur Plex.`);
+    }
+    if (plex.matched_by === 'titre') {
+      notes.push('Rapproché par titre et année : Plex n’a pas d’identifiant TMDB pour ce film.');
+    }
   }
 
-  if (info.url) {
-    const link = el('a', 'link-btn plex-open');
-    link.href = info.url;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    const dot = el('span', 'link-dot');
-    dot.style.background = '#e5a00d';
-    link.appendChild(dot);
-    link.appendChild(document.createTextNode('Ouvrir dans Plex'));
-    box.appendChild(link);
+  const noms = (dispo.providers || []).map((p) => p.name);
+  if (noms.length) {
+    const liste = noms.length > 1
+      ? `${noms.slice(0, -1).join(', ')} et ${noms[noms.length - 1]}` : noms[0];
+    billets.appendChild(billet({ petit: 'Abonnement', grand: `Inclus avec ${liste}` }));
   }
-  return box;
+  // Ce que TMDB connaît en plus de tes abonnements : à titre d'information.
+  const ailleurs = ((movie.providers || {}).flatrate || []).filter((n) => !noms.includes(n));
+  if (ailleurs.length) {
+    notes.push(noms.length
+      ? `Aussi en streaming chez ${ailleurs.join(', ')}.`
+      : `En streaming chez ${ailleurs.join(', ')}, mais pas dans tes abonnements.`);
+  }
+
+  if (state.tracker.enabled && !plex) {
+    if (!resultat) {
+      billets.appendChild(billet({ petit: 'À télécharger', grand: 'Recherche sur le tracker…' }));
+    } else if (resultat.error) {
+      billets.appendChild(billet({
+        petit: 'À télécharger', grand: 'Tracker injoignable', info: resultat.error,
+      }));
+    } else if ((resultat.torrents || []).length) {
+      billets.appendChild(billetTorrent(resultat.torrents));
+    }
+  }
+
+  const tout = connu && (!state.tracker.enabled || plex || resultat);
+  if (!billets.children.length) {
+    billets.appendChild(billet(tout
+      ? { petit: 'Où le regarder', grand: 'Pas encore disponible chez toi' }
+      : { petit: 'Où le regarder', grand: 'Recherche en cours…' }));
+  }
+  billets.firstElementChild.classList.add('is-best');
+  slot.appendChild(billets);
+  notes.forEach((texte) => slot.appendChild(el('p', 'muted where-note', texte)));
+  if (state.tracker.enabled) slot.appendChild(renderVersions(movie, etaitOuvert));
+}
+
+/** Toutes les versions du tracker, repliées : le billet montre déjà la meilleure. */
+function renderVersions(movie, ouvert) {
+  const boite = el('details', 'versions');
+  const resultat = state.torrentCache.get(movie.id);
+  const n = resultat && !resultat.error ? (resultat.torrents || []).length : 0;
+  boite.appendChild(el('summary', null, n
+    ? `Toutes les versions sur ${state.tracker.name} (${n})`
+    : `Versions sur ${state.tracker.name}`));
+  const corps = el('div', 'versions-body');
+  boite.appendChild(corps);
+
+  const remplir = async () => {
+    if (corps.dataset.rempli) return;
+    corps.dataset.rempli = '1';
+    corps.appendChild(el('p', 'muted', 'Interrogation du tracker…'));
+    const r = await fetchTorrents(movie);
+    corps.textContent = '';
+    corps.appendChild(renderTorrents(r));
+  };
+  boite.addEventListener('toggle', () => { if (boite.open) remplir(); });
+  if (ouvert) { boite.open = true; }
+  return boite;
+}
+
+async function loadSheetWhere(movie) {
+  paintSheetWhere(movie);
+  if (!state.availKnown.has(movie.id)) await loadAvailability([movie]);
+  paintSheetWhere(movie);
+  const info = state.avail.get(movie.id);
+  // Un film déjà sur Plex n'a pas besoin du tracker : on n'y va que si on nous le demande.
+  if (state.tracker.enabled && !(info && info.plex)) {
+    await fetchTorrents(movie);
+    paintSheetWhere(movie);
+  }
+}
+
+function renderTrailer(movie) {
+  const boite = el('div', 'trailer-box');
+  const bouton = el('button', 'trailer-open');
+  bouton.type = 'button';
+  bouton.appendChild(el('span', 'trailer-open-title', 'Voir la bande-annonce'));
+  const francais = movie.trailer.language === 'fr';
+  bouton.appendChild(el('span', 'trailer-open-lang', francais
+    ? 'En français'
+    : 'En version originale, aucune version française trouvée'));
+  // Rien n'est demandé à YouTube tant qu'on ne clique pas.
+  bouton.addEventListener('click', () => {
+    const cadre = el('div', 'trailer');
+    const iframe = document.createElement('iframe');
+    let src = movie.trailer.embed;
+    try {
+      const url = new URL(src);
+      url.searchParams.set('autoplay', '1');
+      src = url.href;
+    } catch (error) { /* adresse gardée telle quelle */ }
+    iframe.src = src;
+    iframe.title = `Bande-annonce de ${movie.title}`;
+    iframe.allow = 'accelerometer; encrypted-media; picture-in-picture; fullscreen; autoplay';
+    iframe.allowFullscreen = true;
+    cadre.appendChild(iframe);
+    boite.textContent = '';
+    boite.appendChild(cadre);
+  });
+  boite.appendChild(bouton);
+  return boite;
+}
+
+function renderTechnique(movie) {
+  const lignes = [
+    (movie.writers || []).length ? ['Scénario', movie.writers.join(', ')] : null,
+    (movie.companies || []).length ? ['Production', movie.companies.join(', ')] : null,
+    formatMoney(movie.budget) ? ['Budget', formatMoney(movie.budget)] : null,
+    formatMoney(movie.revenue) ? ['Recettes', formatMoney(movie.revenue)] : null,
+  ].filter(Boolean);
+  if (!lignes.length) return null;
+  const liste = el('dl', 'technique');
+  lignes.forEach(([nom, valeur]) => {
+    liste.appendChild(el('dt', null, nom));
+    liste.appendChild(el('dd', null, valeur));
+  });
+  return liste;
 }
 
 function renderActions(movie) {
-  const row = el('div', 'sheet-actions');
-  row.appendChild(renderSeenButton(movie));
-  row.appendChild(renderWantButton(movie));
-  row.appendChild(renderIgnoreButton(movie));
-  return row;
+  const barre = el('div', 'sheet-bar');
+  barre.appendChild(renderWantButton(movie));
+  barre.appendChild(renderSeenButton(movie));
+  barre.appendChild(renderIgnoreButton(movie));
+  return barre;
 }
 
 function renderIgnoreButton(movie) {
@@ -1474,8 +1607,7 @@ function renderIgnoreButton(movie) {
   const button = el('button', 'sheet-hide');
   button.type = 'button';
   button.dataset.id = movie.id;
-  button.appendChild(el('span', 'sheet-hide-icon'));
-  button.appendChild(el('span', null, ignore ? 'Ne plus ignorer' : 'Ne plus me proposer'));
+  button.appendChild(el('span', null, ignore ? 'Ne plus ignorer' : 'Ne plus proposer'));
   button.addEventListener('click', () => toggleIgnore(movie));
   return button;
 }
@@ -1486,7 +1618,6 @@ function renderWantButton(movie) {
   button.type = 'button';
   button.dataset.id = movie.id;
   button.setAttribute('aria-pressed', String(wanted));
-  button.appendChild(el('span', 'sheet-want-icon'));
   button.appendChild(el('span', 'sheet-want-text', wanted ? 'Dans ma liste' : 'À voir'));
   button.addEventListener('click', () => toggleWant(movie));
   return button;
@@ -1498,25 +1629,16 @@ function renderSeenButton(movie) {
   button.type = 'button';
   button.dataset.id = movie.id;
   button.setAttribute('aria-pressed', String(isSeen));
-  button.appendChild(el('span', 'sheet-seen-icon'));
-  button.appendChild(el('span', 'sheet-seen-text', isSeen ? 'Déjà vu' : 'Marquer comme vu'));
+  button.appendChild(el('span', 'sheet-seen-text', isSeen ? 'Déjà vu' : 'Vu'));
   button.addEventListener('click', () => toggleSeen(movie));
   return button;
 }
 
 function renderScore(movie) {
-  const box = el('div', 'score');
+  const box = el('p', 'sheet-score');
   if (movie.votes > 0) {
-    box.appendChild(el('span', 'score-big', movie.rating.toFixed(1).replace('.', ',')));
-    box.appendChild(el('span', 'score-scale', '/ 10'));
-    const meta = el('div', 'score-meta');
-    meta.appendChild(el('div', null, `${formatNumber(movie.votes)} votes TMDB`));
-    const bar = el('div', 'score-bar');
-    const fill = el('span');
-    fill.style.width = `${Math.round(movie.rating * 10)}%`;
-    bar.appendChild(fill);
-    meta.appendChild(bar);
-    box.appendChild(meta);
+    box.appendChild(el('strong', null, movie.rating.toFixed(1).replace('.', ',')));
+    box.appendChild(el('span', null, `sur 10, ${formatNumber(movie.votes)} votes TMDB`));
   } else {
     box.appendChild(el('span', 'muted', 'Pas encore de note.'));
   }
@@ -1529,36 +1651,25 @@ function renderLinks(movie) {
   const titleQuery = encodeURIComponent(movie.title);
 
   const entries = [
-    movie.imdb_id && ['IMDb', `https://www.imdb.com/title/${movie.imdb_id}/`, '#f5c518'],
-    ['SensCritique', `https://www.senscritique.com/search?query=${titleQuery}`, '#ff9d00'],
-    ['Allociné', `https://www.allocine.fr/rechercher/?q=${titleQuery}`, '#fecc00'],
-    ['Letterboxd', `https://letterboxd.com/tmdb/${movie.id}/`, '#00e054'],
-    ['TMDB', `https://www.themoviedb.org/movie/${movie.id}`, '#01b4e4'],
-    ['JustWatch', `https://www.justwatch.com/fr/recherche?q=${titleQuery}`, '#fbc500'],
-    movie.trailer && ['YouTube', movie.trailer.url, '#ff0033'],
-    ['Wikipédia', `https://fr.wikipedia.org/w/index.php?search=${query}+film`, '#cfd6e4'],
+    movie.imdb_id && ['IMDb', `https://www.imdb.com/title/${movie.imdb_id}/`],
+    ['SensCritique', `https://www.senscritique.com/search?query=${titleQuery}`],
+    ['Allociné', `https://www.allocine.fr/rechercher/?q=${titleQuery}`],
+    ['Letterboxd', `https://letterboxd.com/tmdb/${movie.id}/`],
+    ['TMDB', `https://www.themoviedb.org/movie/${movie.id}`],
+    ['JustWatch', `https://www.justwatch.com/fr/recherche?q=${titleQuery}`],
+    movie.trailer && ['YouTube', movie.trailer.url],
+    ['Wikipédia', `https://fr.wikipedia.org/w/index.php?search=${query}+film`],
   ].filter(Boolean);
 
-  entries.forEach(([label, href, color]) => {
+  entries.forEach(([label, href]) => {
     const link = el('a', 'link-btn');
     link.href = href;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
-    const dot = el('span', 'link-dot');
-    dot.style.background = color;
-    link.appendChild(dot);
-    link.appendChild(document.createTextNode(label));
+    link.textContent = label;
     box.appendChild(link);
   });
 
-  const providers = movie.providers || {};
-  const streaming = providers.flatrate || [];
-  if (streaming.length) {
-    // width 100 % : sans cela la note se glisse dans la rangée de boutons.
-    const note = el('p', 'muted links-note');
-    note.textContent = `En streaming inclus : ${streaming.join(', ')}`;
-    box.appendChild(note);
-  }
   return box;
 }
 

@@ -363,6 +363,25 @@ leur décompte. Pas de filtres ici, ils n'ont rien à y faire.
 Revenir dans Parcourir depuis Ma liste relance la recherche : la grille ne garde
 pas deux états à la fois.
 
+## La fiche du film
+
+La fiche s'ouvre sur ce qu'on cherche en premier : **où regarder le film**, avec
+les mêmes billets que « Ce soir ». Le synopsis, la bande-annonce, la
+distribution, la saga, les films proches, la fiche technique et les liens
+externes viennent après, dans cet ordre.
+
+- **Plex** : qualité, codec, conteneur et taille du fichier, bouton *Ouvrir*, et
+  une note quand le rapprochement s'est fait par titre faute d'identifiant TMDB.
+- **Abonnement** : tous tes services qui l'incluent. Si le film n'est chez aucun
+  des tiens mais existe en streaming ailleurs, une note le dit.
+- **Torrent** : le meilleur billet (1080p et version française d'abord), et
+  *Toutes les versions* repliées dessous. Pour un film déjà sur Plex le tracker
+  n'est pas interrogé à l'ouverture : la liste se charge si on la déplie.
+- **La bande-annonce ne se charge qu'au clic.** Rien n'est demandé à YouTube
+  tant qu'on ne l'a pas lancée.
+- **Les trois gestes** (*À voir*, *Vu*, *Ne plus proposer*) restent collés en bas
+  de la fiche pendant qu'on lit. Sur téléphone la fiche prend tout l'écran.
+
 ## Au cinéma
 
 L'onglet **Au cinéma** liste les sorties en salle des 45 derniers jours dans ta

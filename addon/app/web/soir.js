@@ -534,41 +534,6 @@ function soirPeindreFaits(film) {
 
 /* Les billets : une source de visionnage par billet, du plus immédiat au plus long. */
 
-function soirMeilleurTorrent(torrents) {
-  // 1080p et version française d'abord, puis le plus alimenté.
-  const rang = (t) => {
-    const tags = t.tags || {};
-    return (/1080/.test(tags.resolution || '') ? 2 : 0) + (tags.language ? 1 : 0);
-  };
-  return [...torrents].sort((a, b) => rang(b) - rang(a) || (b.seeders || 0) - (a.seeders || 0))[0];
-}
-
-function soirBillet({ petit, grand, action, info }) {
-  const racine = action && action.href
-    ? el('a', 'stub') : action ? el('div', 'stub') : el('div', 'stub is-info');
-  if (action && action.href) {
-    racine.href = action.href;
-    racine.target = action.externe ? '_blank' : '_self';
-    if (action.externe) racine.rel = 'noopener noreferrer';
-  }
-  const corps = el('span', 'stub-main');
-  corps.appendChild(el('small', null, petit));
-  corps.appendChild(el('strong', null, grand));
-  racine.appendChild(corps);
-  if (action) {
-    if (action.href) {
-      racine.appendChild(el('span', 'stub-go', action.texte));
-    } else {
-      const bouton = el('button', 'stub-go', action.texte);
-      bouton.type = 'button';
-      bouton.addEventListener('click', () => action.faire(bouton));
-      racine.appendChild(bouton);
-    }
-  }
-  if (info) racine.title = info;
-  return racine;
-}
-
 function soirPeindreBillets(film) {
   const box = $('soir-tickets');
   if (!box || !soir.hero || soir.hero.id !== film.id) return;
@@ -579,7 +544,7 @@ function soirPeindreBillets(film) {
 
   if (plex) {
     const qualite = [plex.resolution, plex.codec ? plex.codec.toUpperCase() : null].filter(Boolean).join(', ');
-    billets.push(soirBillet({
+    billets.push(billet({
       petit: 'Sur ton Plex, prêt maintenant',
       grand: qualite || 'Dans ta bibliothèque',
       action: plex.url ? { href: plex.url, texte: 'Ouvrir', externe: true } : null,
@@ -589,7 +554,7 @@ function soirPeindreBillets(film) {
   const plateformes = dispo.providers || [];
   if (plateformes.length) {
     const autres = plateformes.length - 1;
-    billets.push(soirBillet({
+    billets.push(billet({
       petit: 'Abonnement',
       grand: `Inclus avec ${plateformes[0].name}${autres ? ` et ${autres} autre${autres > 1 ? 's' : ''}` : ''}`,
     }));
@@ -599,36 +564,20 @@ function soirPeindreBillets(film) {
     const resultat = state.torrentCache.get(film.id);
     if (!resultat) {
       if (soir.chargement && soir.chargement.torrents) {
-        billets.push(soirBillet({ petit: 'À télécharger', grand: 'Recherche sur le tracker…' }));
+        billets.push(billet({ petit: 'À télécharger', grand: 'Recherche sur le tracker…' }));
       }
     } else if (resultat.error) {
-      billets.push(soirBillet({
+      billets.push(billet({
         petit: 'À télécharger', grand: 'Tracker injoignable', info: resultat.error,
       }));
     } else if ((resultat.torrents || []).length) {
-      const liste = resultat.torrents;
-      const meilleur = soirMeilleurTorrent(liste);
-      const tags = meilleur.tags || {};
-      const resume = [tags.resolution, tags.language, meilleur.size ? formatSize(meilleur.size) : null]
-        .filter(Boolean).join(', ');
-      let action = null;
-      if (meilleur.slug && state.deluge.enabled) {
-        action = { texte: 'Envoyer à Deluge', faire: (bouton) => envoyerVersDeluge(meilleur.slug, bouton) };
-      } else if (meilleur.slug) {
-        action = { texte: 'Télécharger', href: apiUrl(`api/torrent?slug=${encodeURIComponent(meilleur.slug)}`) };
-      }
-      billets.push(soirBillet({
-        petit: `À télécharger, ${liste.length} version${liste.length > 1 ? 's' : ''}`,
-        grand: resume || meilleur.name,
-        action,
-        info: meilleur.name,
-      }));
+      billets.push(billetTorrent(resultat.torrents));
     }
   }
 
   const enCours = soir.chargement && (soir.chargement.dispo || soir.chargement.torrents);
   if (!billets.length) {
-    billets.push(soirBillet(enCours
+    billets.push(billet(enCours
       ? { petit: 'Où le regarder', grand: 'Recherche en cours…' }
       : { petit: 'Où le regarder', grand: 'Pas encore disponible chez toi' }));
   }
