@@ -43,6 +43,7 @@ const soir = {
   genre: null,          // id TMDB, ou null pour « un film »
   runtime: null,        // minutes maximum, ou null
   source: 'all',        // all | plex | subs
+  certification: null,  // classement maximal (« U », « 12 »…), ou null
   pool: [],             // films tirés, pas encore proposés
   done: new Set(),      // films déjà proposés ce soir : on ne les repropose pas
   hero: null,
@@ -59,6 +60,7 @@ function soirCharger() {
     if (saved.genre) soir.genre = Number(saved.genre) || null;
     if (SOIR_DUREES.some((d) => d.value === saved.runtime)) soir.runtime = saved.runtime;
     if (SOIR_SOURCES[saved.source]) soir.source = saved.source;
+    if (saved.certification) soir.certification = String(saved.certification);
   } catch (error) { /* stockage indisponible : la phrase repart de zéro */ }
 }
 
@@ -66,6 +68,7 @@ function soirSauver() {
   try {
     localStorage.setItem(SOIR_STOCKAGE, JSON.stringify({
       genre: soir.genre, runtime: soir.runtime, source: soir.source,
+      certification: soir.certification,
     }));
   } catch (error) { /* idem */ }
 }
@@ -81,6 +84,7 @@ function soirParams() {
   const params = new URLSearchParams();
   if (soir.genre) params.set('genres', soir.genre);
   if (soir.runtime) params.set('runtime_max', soir.runtime);
+  if (soir.certification) params.set('certification_max', soir.certification);
   // Mêmes planchers que l'écran « Parcourir » : un film tiré au hasard doit
   // rester un film dont on a entendu parler.
   params.set('rating_min', '6.5');
@@ -103,6 +107,15 @@ function soirOptions(cle) {
     return [{ value: null, label: 'un film' }, ...genres];
   }
   if (cle === 'runtime') return SOIR_DUREES;
+  if (cle === 'certification') {
+    return [
+      { value: null, label: 'avec n’importe quel classement' },
+      ...classementsProposes().map((c) => ({
+        value: c.code,
+        label: c.code === 'U' ? 'classé tout public' : `classé ${libelleClassement(c.code)} au maximum`,
+      })),
+    ];
+  }
   return soirSourcesDispo().map((value) => ({ value, label: SOIR_SOURCES[value] }));
 }
 
@@ -116,7 +129,10 @@ function soirRenderSentence() {
   const box = $('soir-sentence');
   box.textContent = '';
   box.appendChild(document.createTextNode('Ce soir, je veux '));
-  ['genre', 'runtime', 'source'].forEach((cle) => {
+  // Sans classement connu pour la région, la phrase n'a pas ce mot.
+  const cles = ['genre', 'runtime', 'source'];
+  if (classementsProposes().length) cles.push('certification');
+  cles.forEach((cle) => {
     const bouton = el('button', 'soir-choice', soirLibelle(cle));
     bouton.type = 'button';
     bouton.dataset.key = cle;
@@ -205,6 +221,7 @@ function soirAffiner() {
     if (chip) chip.className = 'chip is-in';
   }
   if (soir.runtime) { $('runtime-max').value = soir.runtime; syncRangeLabels(); }
+  if (soir.certification) $('certification').value = soir.certification;
   if (soir.source !== 'all') {
     const ids = soir.source === 'plex'
       ? ['plex'] : state.providerList.filter((p) => !p.local).map((p) => String(p.id));
@@ -648,12 +665,14 @@ function soirInit() {
   if (soir.ready) {
     // Les réglages ont changé : la phrase doit proposer ce qui existe encore.
     if (!soirSourcesDispo().includes(soir.source)) soir.source = 'all';
+    if (!classementsProposes().some((c) => c.code === soir.certification)) soir.certification = null;
     soirRenderSentence();
     return;
   }
   soir.ready = true;
   soirCharger();
   if (!soirSourcesDispo().includes(soir.source)) soir.source = 'all';
+  if (!classementsProposes().some((c) => c.code === soir.certification)) soir.certification = null;
   soirRenderSentence();
 
   document.addEventListener('click', (event) => {

@@ -115,6 +115,20 @@ class Tmdb:
         data = self._call("/genre/movie/list", {"language": self.language})
         return data.get("genres", []) if data else []
 
+    def certifications(self) -> list[dict[str, Any]]:
+        """Classifications d'age de la region, de la plus ouverte a la plus stricte.
+
+        En France : U (tout public), 10, 12, 16, 18. Chaque pays a les siennes :
+        TMDB ne filtre que sur celles de la region configuree.
+        """
+        data = self._call("/certification/movie/list") or {}
+        liste = (data.get("certifications") or {}).get(self.region) or []
+        return sorted(
+            ({"code": c["certification"], "order": c.get("order", 0)}
+             for c in liste if c.get("certification")),
+            key=lambda c: c["order"],
+        )
+
     def providers(self, limit: int = 24, toutes: bool = False) -> list[dict[str, Any]]:
         """Plateformes de streaming disponibles dans la region, les plus
         courantes d'abord."""
@@ -499,6 +513,13 @@ class Tmdb:
 
         if criteria.get("original_language"):
             params["with_original_language"] = criteria["original_language"]
+
+        # « Au plus -12 » : TMDB compare au classement de la region. Un film sans
+        # classement dans cette region est ecarte par le filtre : TMDB ne
+        # le connait pas, il ne peut pas dire qu'il convient.
+        if criteria.get("certification_max"):
+            params["certification_country"] = self.region
+            params["certification.lte"] = criteria["certification_max"]
 
         if criteria.get("keywords"):
             params["with_keywords"] = "|".join(str(k) for k in criteria["keywords"])

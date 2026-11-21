@@ -17,6 +17,7 @@ import datetime
 import json
 import mimetypes
 import os
+import re
 import sys
 import threading
 import urllib.parse
@@ -302,9 +303,15 @@ class Handler(BaseHTTPRequestHandler):
             genres = TMDB.genres() if config_module.is_configured(CONFIG) else []
         except HttpError:
             genres = []
+        try:
+            certifications = (
+                TMDB.certifications() if config_module.is_configured(CONFIG) else [])
+        except HttpError:
+            certifications = []
 
         return {
             "genres": genres,
+            "certifications": certifications,
             "region": TMDB.region,
             "tracker": {
                 "enabled": TRACKER.configured,
@@ -372,6 +379,7 @@ class Handler(BaseHTTPRequestHandler):
             "runtime_min": _int(params, "runtime_min"),
             "runtime_max": _int(params, "runtime_max"),
             "original_language": _one(params, "original_language", ""),
+            "certification_max": _certification(params),
             "sort": _one(params, "sort", "note"),
             "limit": _int(params, "limit") or 20,
             "page": _int(params, "page") or 1,
@@ -715,6 +723,15 @@ def _float(params: dict[str, list[str]], key: str) -> float | None:
         return float(raw)
     except ValueError:
         return None
+
+
+def _certification(params: dict[str, list[str]]) -> str | None:
+    """Classification maximale demandee, ou None.
+
+    Valeur courte et sobre : elle part telle quelle dans une requete vers TMDB.
+    """
+    valeur = _one(params, "certification_max", "").strip()
+    return valeur if re.fullmatch(r"[A-Za-z0-9+\-]{1,8}", valeur) else None
 
 
 def _int_list(values: list[str]) -> list[int]:

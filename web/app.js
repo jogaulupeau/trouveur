@@ -18,6 +18,7 @@ const state = {
   screen: 'soir',           // soir | parcourir | liste | reglages
   prevScreen: 'soir',       // où revenir en quittant les réglages
   providerList: [],         // plateformes de la région (Plex en tête, s'il est connecté)
+  certifications: [],       // classements d'âge de la région, du plus ouvert au plus strict
   mode: 'decouverte',       // decouverte | foryou | recherche | similaires | watchlist | seen | ignored
   searchQuery: '',
   similarTo: null,      // {id, title} quand on explore les films proches
@@ -178,6 +179,8 @@ async function bootstrap() {
     state.deluge = data.deluge || { enabled: false };
     data.genres.forEach((g) => state.genres.set(g.id, g.name));
     buildGenreChips(data.genres);
+    state.certifications = data.certifications || [];
+    buildCertifications();
     await buildProviders();
     renderSeenCount();
     renderTabCounts();
@@ -575,6 +578,29 @@ async function buildProviders() {
   });
 }
 
+/** Le libellé d'un classement : « tout public », « -12 »… selon la région. */
+function libelleClassement(code) {
+  if (code === 'U') return 'tout public';
+  return /^\d+$/.test(code) ? `-${code}` : code;
+}
+
+/** Les classements proposés : tous sauf le plus strict, qui ne limite rien. */
+function classementsProposes() {
+  return state.certifications.slice(0, -1);
+}
+
+function buildCertifications() {
+  const choix = $('certification');
+  choix.textContent = '';
+  choix.appendChild(new Option('Peu importe', ''));
+  classementsProposes().forEach((c) => {
+    choix.appendChild(new Option(
+      c.code === 'U' ? 'Tout public' : `Au plus ${libelleClassement(c.code)}`, c.code));
+  });
+  // Une région sans classement connu n'a pas de filtre à proposer.
+  $('certification-field').hidden = !classementsProposes().length;
+}
+
 function buildGenreChips(genres) {
   const box = $('genres');
   box.textContent = '';
@@ -791,6 +817,7 @@ function resetCriteria() {
   $('runtime-max').value = 245;
   $('votes-min').value = '300';
   $('original-language').value = '';
+  $('certification').value = '';
   $('keyword').value = '';
   $('sort').value = 'note';
   $('hide-seen').checked = false;
@@ -826,6 +853,9 @@ function buildQuery() {
   if (runtime < 245) params.set('runtime_max', runtime);
 
   params.set('votes_min', $('votes-min').value);
+
+  const certification = $('certification').value;
+  if (certification) params.set('certification_max', certification);
 
   const language = $('original-language').value;
   if (language) params.set('original_language', language);
@@ -882,7 +912,8 @@ async function fetchPage() {
       const params = new URLSearchParams(state.query);
       // Note et popularité minimales n'ont pas de sens sur des films tout
       // juste sortis, et le tri est celui de l'onglet : par date.
-      ['sort', 'rating_min', 'votes_min', 'year_min', 'year_max', 'keyword']
+      // Un film qui sort n'a pas encore de classement : le filtrer viderait l'onglet.
+      ['sort', 'rating_min', 'votes_min', 'year_min', 'year_max', 'keyword', 'certification_max']
         .forEach((cle) => params.delete(cle));
       params.set('page', state.nextPage);
       route = `/api/cinema?${params}`;
@@ -892,6 +923,7 @@ async function fetchPage() {
       params.delete('sort');
       params.delete('limit');
       params.delete('keyword');
+      params.delete('certification_max');   // le classement d'un film n'est connu que de sa fiche
       params.delete('hide_seen');
       params.set('page', state.nextPage);
       route = `/api/foryou?${params}`;
@@ -2356,6 +2388,7 @@ function renderFiltersCount() {
   if (parseFloat($('rating-min').value) !== 6.5) n += 1;
   if (parseInt($('runtime-max').value, 10) < 245) n += 1;
   if ($('original-language').value) n += 1;
+  if ($('certification').value) n += 1;
   if ($('keyword').value.trim()) n += 1;
   if ($('hide-seen').checked) n += 1;
   $('filters-count').textContent = n || '';

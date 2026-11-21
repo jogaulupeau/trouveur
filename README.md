@@ -238,6 +238,25 @@ n'était pas le cas, l'accent reste ambre et rien d'autre ne change.
 
 Sur téléphone la navigation passe en barre du bas, à portée de pouce.
 
+## Public
+
+Un quatrième mot dans la phrase de « Ce soir » et un champ **Public** dans les
+filtres de Parcourir limitent le classement d'âge : *tout public*, *-10*, *-12*,
+*-16* au maximum. C'est un **plafond**, pas une valeur exacte : « -12 au
+maximum » garde les films tout public, -10 et -12.
+
+TMDB compare au classement de la **région** configurée (en France : U, 10, 12,
+16, 18). La liste est lue chez TMDB, pas écrite dans le code : une région dont
+TMDB ne connaît aucun classement n'a simplement pas ce filtre. Le plus strict
+(18 en France) n'est pas proposé, puisqu'il ne limite rien.
+
+**À savoir :** un film sans classement dans la région est écarté dès que le
+filtre est actif. TMDB ne le connaît pas, il ne peut pas dire qu'il convient. Le
+vivier est donc plus petit, surtout pour les films récents ou confidentiels. Les
+onglets *Pour toi* et *Au cinéma* ignorent ce critère : le premier ne connaît le
+classement d'un film que par sa fiche, le second montre des sorties qui n'en ont
+pas encore.
+
 ## Recherche par titre
 
 Le champ en haut de page cherche un film par son nom, en français. Les résultats
