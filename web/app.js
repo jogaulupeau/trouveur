@@ -908,6 +908,8 @@ function bindEvents() {
     runTitleSearch($('search-input').value);
   });
 
+  $('home-link').addEventListener('click', () => goTo('soir'));
+
   $('mainnav').addEventListener('click', (event) => {
     const bouton = event.target.closest('button[data-nav]');
     if (bouton) goTo(bouton.dataset.nav);

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="14 30 100 68">
+  <!-- La marque sans fond : le « t » et la perforation sont découpés, la page se voit à travers.
+       Même dessin que favicon.svg. -->
+  <defs>
+    <mask id="decoupe" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128">
+      <rect width="128" height="128" fill="#fff"/>
+      <circle cx="86" cy="30" r="8" fill="#000"/>
+      <circle cx="86" cy="98" r="8" fill="#000"/>
+      <path d="M86 40v48" stroke="#000" stroke-width="3" stroke-dasharray="5 5" fill="none"/>
+      <rect x="44" y="42" width="12" height="42" rx="2" fill="#000"/>
+      <rect x="33" y="52" width="34" height="10" rx="2" fill="#000"/>
+      <rect x="50" y="75" width="18" height="10" rx="2" fill="#000"/>
+    </mask>
+  </defs>
+  <rect x="14" y="30" width="100" height="68" rx="8" fill="#f2a93b" mask="url(#decoupe)"/>
+</svg>

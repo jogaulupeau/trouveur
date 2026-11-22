@@ -81,7 +81,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
   padding: 20px clamp(18px, 3.5vw, 48px) 0;
 }
 
+/* La marque et le mot : un seul bouton, qui ramène à « Ce soir ». */
 .masthead-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.masthead-logo span {
   font-family: var(--display);
   font-stretch: 62%;
   font-weight: 800;
@@ -89,6 +101,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   line-height: 1;
   letter-spacing: 0.01em;
 }
+.masthead-logo:focus-visible { outline: 3px solid var(--text); outline-offset: 6px; border-radius: 4px; }
+.masthead-mark { display: block; width: 44px; height: 30px; }
 
 .mainnav { display: flex; gap: 4px; margin-right: auto; }
 .mainnav button {
@@ -1395,7 +1409,6 @@ input[type="file"]::file-selector-button {
 
   /* En-tête compact : 220 px, c'est un cinquième de l'écran d'un téléphone. */
   .masthead { gap: 12px; padding: 14px 16px 12px; }
-  .masthead-mark { width: 32px; height: 32px; }
   .masthead h1 { font-size: 21px; }
   .masthead-tagline { display: none; }
   .masthead-status { display: none; }
@@ -1861,7 +1874,8 @@ a.stub:hover, .stub:has(button:hover) { filter: brightness(1.1); }
 
 @media (max-width: 860px) {
   .masthead { flex-wrap: wrap; gap: 14px; }
-  .masthead-logo { font-size: 28px; }
+  .masthead-logo span { font-size: 28px; }
+  .masthead-mark { width: 38px; height: 26px; }
   .search { flex: 1 1 160px; }
   .search-go { display: none; }
 
