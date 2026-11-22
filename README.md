@@ -213,9 +213,14 @@ un autre. Le catalogue complet (filtres, « Pour toi », « Au cinéma », liste
 reste dans **Parcourir** et **Ma liste**.
 
 Le film est **tiré au hasard** parmi ce que la phrase en bas de page autorise :
-« Ce soir, je veux *un thriller* *de moins de 2 h* *sur mon Plex* ». Genre,
-durée et source couvrent la plupart des soirs ; **Voir tout le catalogue** reprend
-la phrase dans les filtres de Parcourir pour aller plus loin. Les planchers sont
+« Ce soir, je veux *un thriller*, *sorti depuis 1990*, *de moins de 2 h*, *sur mon
+Plex* ». Genre, époque, durée, source et classement couvrent la plupart des soirs ;
+**Voir tout le catalogue** reprend la phrase dans les filtres de Parcourir pour aller
+plus loin.
+
+L'**époque** est une borne basse (*sorti depuis 1980, 1990, 2000, 2010 ou 2020*) :
+elle sert à écarter les films trop anciens, pas à choisir une décennie. C'est le
+filtre « de » de la période de Parcourir. Les planchers sont
 ceux de Parcourir (note 6,5, 300 votes), les films déjà vus ou ignorés ne sont
 jamais tirés, et ceux déjà passés ce soir ne reviennent pas. La phrase est
 retenue par le navigateur.

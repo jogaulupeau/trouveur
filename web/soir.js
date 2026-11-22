@@ -23,6 +23,13 @@ const SOIR_GENRES = {
   53: 'un thriller', 10752: 'un film de guerre', 37: 'un western',
 };
 
+// Une borne basse seulement : l'idée est d'écarter les films trop anciens, pas de
+// choisir une décennie. Le mot suit « un film » : « un thriller sorti depuis 1990 ».
+const SOIR_ANNEES = [
+  { value: null, label: 'de toutes les époques' },
+  ...[1980, 1990, 2000, 2010, 2020].map((an) => ({ value: an, label: `sorti depuis ${an}` })),
+];
+
 const SOIR_DUREES = [
   { value: null, label: 'de n’importe quelle durée' },
   { value: 90, label: 'de moins d’1 h 30' },
@@ -41,6 +48,7 @@ const SOIR_STOCKAGE = 'trouveur.soir';
 const soir = {
   ready: false,
   genre: null,          // id TMDB, ou null pour « un film »
+  year: null,           // année de sortie minimale, ou null
   runtime: null,        // minutes maximum, ou null
   source: 'all',        // all | plex | subs
   certification: null,  // classement maximal (« U », « 12 »…), ou null
@@ -59,6 +67,7 @@ function soirCharger() {
     const saved = JSON.parse(localStorage.getItem(SOIR_STOCKAGE) || '{}');
     if (saved.genre) soir.genre = Number(saved.genre) || null;
     if (SOIR_DUREES.some((d) => d.value === saved.runtime)) soir.runtime = saved.runtime;
+    if (SOIR_ANNEES.some((a) => a.value === saved.year)) soir.year = saved.year;
     if (SOIR_SOURCES[saved.source]) soir.source = saved.source;
     if (saved.certification) soir.certification = String(saved.certification);
   } catch (error) { /* stockage indisponible : la phrase repart de zéro */ }
@@ -67,7 +76,7 @@ function soirCharger() {
 function soirSauver() {
   try {
     localStorage.setItem(SOIR_STOCKAGE, JSON.stringify({
-      genre: soir.genre, runtime: soir.runtime, source: soir.source,
+      genre: soir.genre, year: soir.year, runtime: soir.runtime, source: soir.source,
       certification: soir.certification,
     }));
   } catch (error) { /* idem */ }
@@ -84,6 +93,7 @@ function soirParams() {
   const params = new URLSearchParams();
   if (soir.genre) params.set('genres', soir.genre);
   if (soir.runtime) params.set('runtime_max', soir.runtime);
+  if (soir.year) params.set('year_min', soir.year);
   if (soir.certification) params.set('certification_max', soir.certification);
   // Mêmes planchers que l'écran « Parcourir » : un film tiré au hasard doit
   // rester un film dont on a entendu parler.
@@ -106,6 +116,7 @@ function soirOptions(cle) {
       .sort((a, b) => a.label.localeCompare(b.label, 'fr'));
     return [{ value: null, label: 'un film' }, ...genres];
   }
+  if (cle === 'year') return SOIR_ANNEES;
   if (cle === 'runtime') return SOIR_DUREES;
   if (cle === 'certification') {
     return [
@@ -130,9 +141,11 @@ function soirRenderSentence() {
   box.textContent = '';
   box.appendChild(document.createTextNode('Ce soir, je veux '));
   // Sans classement connu pour la région, la phrase n'a pas ce mot.
-  const cles = ['genre', 'runtime', 'source'];
+  const cles = ['genre', 'year', 'runtime', 'source'];
   if (classementsProposes().length) cles.push('certification');
-  cles.forEach((cle) => {
+  cles.forEach((cle, i) => {
+    // Des virgules entre les mots : sans elles, quatre ou cinq choix à la suite se lisent mal.
+    if (i > 0) box.appendChild(document.createTextNode(', '));
     const bouton = el('button', 'soir-choice', soirLibelle(cle));
     bouton.type = 'button';
     bouton.dataset.key = cle;
@@ -140,8 +153,8 @@ function soirRenderSentence() {
     bouton.setAttribute('aria-expanded', 'false');
     bouton.addEventListener('click', () => soirToggleMenu(bouton));
     box.appendChild(bouton);
-    box.appendChild(document.createTextNode(' '));
   });
+  box.appendChild(document.createTextNode(' '));
   const affiner = el('button', 'soir-refine', 'Voir tout le catalogue');
   affiner.type = 'button';
   affiner.addEventListener('click', soirAffiner);
@@ -220,6 +233,7 @@ function soirAffiner() {
     const chip = $('genres').querySelector(`[data-id="${soir.genre}"]`);
     if (chip) chip.className = 'chip is-in';
   }
+  if (soir.year) $('year-min').value = soir.year;
   if (soir.runtime) { $('runtime-max').value = soir.runtime; syncRangeLabels(); }
   if (soir.certification) $('certification').value = soir.certification;
   if (soir.source !== 'all') {
